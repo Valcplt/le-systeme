@@ -126,6 +126,12 @@ window.App = App;
        Aucun effet sur les moyennes : un jour non rempli ne compte pas. */
     var back = new Date(); back.setDate(back.getDate() - 30);
     var t = back.toISOString();
+    /* updatedAt volontairement place au plus loin dans le passe : une
+       habitude de depart doit TOUJOURS perdre face a la version du cloud.
+       Sinon, installer l'app sur un appareil neuf pourrait ecraser un nom
+       ou un objectif modifie il y a longtemps, la "modification la plus
+       recente" etant alors celle de l'installation. */
+    var JAMAIS_MODIFIEE = '1970-01-01T00:00:00.000Z';
     return raw.map(function (r) {
       return {
         id: r[0],
@@ -140,7 +146,7 @@ window.App = App;
         active: r[7],
         position: pos[r[1]]++,
         createdAt: t,
-        updatedAt: t,
+        updatedAt: JAMAIS_MODIFIEE,
         deletedAt: null
       };
     });
