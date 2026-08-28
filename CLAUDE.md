@@ -216,14 +216,38 @@ Principes à respecter :
 Les migrations vivent dans `supabase/migrations/`, numérotées, additives.
 On les colle dans Supabase → SQL Editor → New query → Run.
 
-## 9. Publier une mise à jour
+## 9. Publier une mise à jour (étape 3, faite)
 
-*(à compléter à l'étape 3 — voir le plan)*
-GitHub Pages, dépôt public. Le code est public, les données ne le sont pas :
-elles vivent dans Supabase, protégées par la RLS et son compte email.
-Ne pas oublier d'ajouter l'adresse GitHub Pages dans Supabase →
-Authentication → URL Configuration (Site URL **et** Redirect URLs), sinon
-le lien magique ne saura pas où revenir.
+**En ligne à :** https://valcplt.github.io/le-systeme/
+**Dépôt :** https://github.com/Valcplt/le-systeme (public, branche `main`)
+
+`gh` **est installé** malgré ce que laisse croire le PATH :
+`C:\Program Files\GitHub CLI\gh.exe`, compte `Valcplt` déjà authentifié
+(scopes `repo`, `workflow`). L'appeler par son chemin complet.
+
+**La recette, dans l'ordre :**
+
+1. Lui faire **exporter sa sauvegarde** (onglet Système) si le changement
+   touche à la structure des données.
+2. Modifier le code. Migration additive dans `supabase/migrations/` si
+   besoin — c'est lui qui la colle dans le SQL Editor.
+3. **Incrémenter `VERSION` dans `sw.js`** (`'v1'` → `'v2'`…). Sans ça, son
+   téléphone continuera de servir l'ancien code depuis son cache.
+4. Tester en local (`preview_start` avec le nom `le-systeme`).
+5. `git add -A && git commit && git push`.
+6. GitHub Pages reconstruit en 1-2 min. Vérifier avec
+   `gh api repos/Valcplt/le-systeme/pages` → `"status":"built"`.
+7. **Vérifier que son historique est intact** — c'est la promesse du
+   projet, elle se vérifie à chaque fois, pas une fois pour toutes.
+
+**Réglages Supabase liés à l'adresse** (Authentication → URL
+Configuration) : `Site URL` et `Redirect URLs` doivent contenir
+`https://valcplt.github.io/le-systeme/`, sinon le lien magique ne sait
+pas où revenir. `http://localhost:8123` y reste pour les tests.
+
+Le code est public, les données ne le sont pas : elles vivent dans
+Supabase, verrouillées ligne par ligne au compte connecté. Vérifié :
+lecture et écriture anonymes refusées sur les 4 tables.
 
 ## 10. Journal
 
@@ -239,6 +263,13 @@ le lien magique ne saura pas où revenir.
   affiché. Identifiants des habitudes de départ figés (`seed-*`) pour
   éviter les doublons au branchement du 2ᵉ appareil. Reste à faire :
   mise en ligne + PWA (étape 3), notice (étape 4).
+- **28 août 2026 — étape 3.** En ligne sur GitHub Pages, installable sur
+  l'écran d'accueil, fonctionne hors ligne (17 fichiers en cache).
+  Icônes PNG générées avec System.Drawing en PowerShell (pas de Node pour
+  faire ça — le script est jetable, la logique tient en 60 lignes).
+  **Règle d'or n°6 vérifiée pour de vrai :** cache du code entièrement
+  détruit + service worker désinscrit → au rechargement, score, tâche et
+  objectif intacts. Reste à faire : la notice (étape 4).
 
 ## 11. Explicitement remis à plus tard (V2)
 
