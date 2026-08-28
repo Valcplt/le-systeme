@@ -39,9 +39,16 @@ données.** Les six garde-fous ci-dessous existent pour ça.
    `migrate()` fait monter les anciennes données ; des données écrites par
    une version plus récente sont laissées intactes, jamais rétrogradées.
 5. **L'export est le filet.** Onglet Système → « Exporter ma sauvegarde ».
-   Avant toute modification structurelle, demande-lui d'exporter.
-6. **Vider un cache ne touche jamais aux données.** Le futur `sw.js` ne
-   met en cache que le code.
+   Avant toute modification structurelle, demande-lui d'exporter. Deux
+   modes d'import existent, et ce n'est pas un hasard : « Fusionner »
+   (garde la version la plus récente, ne supprime jamais) pour rapatrier
+   ce qui manque, « Tout remplacer » (`restoreData()` / `undoRestore()`
+   dans `js/store.js`) pour revenir en arrière après une fausse manœuvre
+   — celui-ci met l'état actuel de côté avant d'écraser, avec un bouton
+   « Annuler la restauration » juste après.
+6. **Vider un cache ne touche jamais aux données.** `sw.js` ne met en
+   cache que le code (voir étape 3, §9) — vérifié en le détruisant
+   entièrement pendant que des données de test étaient en place.
 
 **Procédure standard pour toute modification :**
 > exporter la sauvegarde → modifier le code → ajouter une migration
@@ -57,7 +64,7 @@ Vérifié le 28 août 2026 sur son PC Windows 11 :
 | Git | installé |
 | Node.js / npm | **absents** |
 | Python | **absent** (le `python.exe` trouvé est le raccourci Microsoft Store, non fonctionnel) |
-| GitHub CLI (`gh`) | absent |
+| GitHub CLI (`gh`) | **installé, mais absent du `PATH`** — voir §9 pour le chemin exact et le compte déjà authentifié |
 
 Conséquences, **non négociables** :
 
@@ -90,6 +97,9 @@ la synchro cloud viendra par-dessus, en arrière-plan.
 | `js/sync.js` | Connexion par lien magique + synchro Supabase. Seul fichier en `async/await` |
 | `config.js` | URL + clé publique Supabase. Vides = mode local pur, l'app marche quand même |
 | `js/app.js` | Outils communs (`App.ui.el`, modale, toast), onglets, démarrage. **Chargé en dernier** |
+| `sw.js` | Mode hors ligne : ne met en cache QUE le code (voir règle d'or n°6, §9) |
+| `manifest.webmanifest` | Nom, icône, plein écran — pour « Ajouter à l'écran d'accueil » |
+| `icons/` | `icon.svg` (source) + PNG générés (192, 512, apple-touch) |
 
 Conventions :
 
