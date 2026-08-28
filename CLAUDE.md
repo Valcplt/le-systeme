@@ -187,9 +187,25 @@ Pas de tests automatisés (pas de Node). On teste à la main, dans cet ordre :
 
 ## 8. La synchronisation (étape 2, faite)
 
-Projet Supabase `qttezrkjtnwigcvumokc`. Connexion par **lien magique**
-(aucun mot de passe). Quatre tables qui reprennent le modèle local à
-l'identique : `settings`, `habits`, `entries`, `tasks`.
+Projet Supabase `qttezrkjtnwigcvumokc`. Quatre tables qui reprennent le
+modèle local à l'identique : `settings`, `habits`, `entries`, `tasks`.
+
+**Deux façons de se connecter, et l'ordre compte :**
+1. **Email + mot de passe** — proposé en premier, c'est le chemin normal.
+   N'envoie **aucun email**, donc ne peut jamais laisser dehors.
+2. **Lien magique** — accessible en un clic, pour un appareil qui n'a pas
+   encore de mot de passe.
+
+Pourquoi : le SMTP par défaut de Supabase est bridé à ~2 emails/heure
+(c'est un service de démonstration). Il a été bloqué dessus en connectant
+son 3ᵉ appareil. Pour une app qu'on ouvre tous les matins, dépendre de sa
+boîte mail est une fragilité inacceptable. Ne pas revenir en arrière
+là-dessus sans lui en parler.
+Si le lien magique devait redevenir central, brancher un vrai SMTP
+(Resend) dans Supabase → Authentication → SMTP Settings.
+
+`friendlyError()` dans `js/sync.js` traduit les messages de Supabase :
+les laisser en anglais devant lui n'aurait aucun sens.
 
 Principes à respecter :
 
@@ -270,6 +286,26 @@ lecture et écriture anonymes refusées sur les 4 tables.
   **Règle d'or n°6 vérifiée pour de vrai :** cache du code entièrement
   détruit + service worker désinscrit → au rechargement, score, tâche et
   objectif intacts. Reste à faire : la notice (étape 4).
+- **28 août 2026 — deux incidents après la mise en ligne.**
+  1. *14 habitudes en double.* Son navigateur sur `localhost` avait
+     fabriqué les habitudes de départ **avant** le passage aux
+     identifiants fixes, et les avait envoyées dans le cloud.
+     `valcplt.github.io` étant une autre origine, un second jeu a été
+     créé avec les identifiants `seed-*` : les deux ont fusionné.
+     Réparé par `supabase/maintenance/2026-08-28_doublons.sql`
+     (suppression douce des seules habitudes ayant une jumelle du même
+     nom côté `seed-`). Résiduel de transition : ne peut plus se
+     reproduire. A coûté les 2-3 saisies de test rattachées aux
+     anciennes.
+     Faille voisine corrigée dans la foulée : les habitudes de départ
+     portent maintenant `updatedAt = 1970`, pour toujours perdre face à
+     la version du cloud.
+  2. *« Email rate limit exceeded »* au 3ᵉ appareil → ajout de la
+     connexion par mot de passe (voir §8).
+  **Leçon pour les prochaines fois :** en développement, le service
+  worker sert l'ancien code depuis son cache et fait croire qu'une
+  modification n'a pas pris. Avant de conclure quoi que ce soit d'un
+  test, désinscrire le service worker et vider les caches.
 
 ## 11. Explicitement remis à plus tard (V2)
 
