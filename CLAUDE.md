@@ -230,7 +230,18 @@ Principes à respecter :
   texte donnerait un résultat faux.
 
 Les migrations vivent dans `supabase/migrations/`, numérotées, additives.
-On les colle dans Supabase → SQL Editor → New query → Run.
+Les réparations ponctuelles (non rejouables) vont dans
+`supabase/maintenance/`, datées.
+
+**Accès direct :** le connecteur Supabase (MCP) est branché sur le projet
+`qttezrkjtnwigcvumokc` — inutile de lui faire faire des copier-coller
+dans le SQL Editor. Lancer `get_advisors` après chaque changement de
+structure : c'est lui qui a signalé le `search_path` non figé de
+`touch_synced_at` (corrigé).
+
+Un schéma `sauvegarde` contient des copies datées des tables, prises
+avant les réparations. PostgREST n'expose que `public` : ces copies ne
+sont donc atteignables par personne depuis l'app.
 
 ## 9. Publier une mise à jour (étape 3, faite)
 
@@ -295,8 +306,15 @@ lecture et écriture anonymes refusées sur les 4 tables.
      Réparé par `supabase/maintenance/2026-08-28_doublons.sql`
      (suppression douce des seules habitudes ayant une jumelle du même
      nom côté `seed-`). Résiduel de transition : ne peut plus se
-     reproduire. A coûté les 2-3 saisies de test rattachées aux
-     anciennes.
+     reproduire. **Piège évité de justesse :** ses 7 saisies du 28 août
+     (6 validées) étaient rattachées aux ANCIENS identifiants, les
+     nouvelles habitudes n'ayant aucune donnée. Les supprimer sans
+     précaution aurait effacé sa journée. Les saisies ont donc été
+     rapatriées vers les jumelles `seed-` **avant** le retrait, après
+     copie de sécurité dans le schéma `sauvegarde` (que PostgREST
+     n'expose pas) et vérification qu'aucune clé n'entrait en conflit.
+     *Réflexe à garder : avant tout nettoyage, regarder ce qui pend au
+     bout de ce qu'on s'apprête à retirer.*
      Faille voisine corrigée dans la foulée : les habitudes de départ
      portent maintenant `updatedAt = 1970`, pour toujours perdre face à
      la version du cloud.
