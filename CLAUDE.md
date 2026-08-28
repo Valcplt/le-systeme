@@ -348,3 +348,8 @@ lecture et écriture anonymes refusées sur les 4 tables.
   3. Lui rappeler que, propriétaire du projet Supabase, il peut voir les
      données de tous depuis le tableau de bord. La RLS protège les
      utilisateurs entre eux, pas du propriétaire.
+- **La notice.** Décidé le 28 août 2026 : pas de `NOTICE.md` séparé — ça
+  n'a de sens que le jour où l'app s'ouvre à d'autres personnes (voir
+  point ci-dessus). À ce moment-là, en faire un **guide intégré à
+  l'app** (écran d'accueil pour un nouveau compte, ou aide contextuelle
+  en cas de blocage), pas un fichier à côté que personne n'ouvre.
