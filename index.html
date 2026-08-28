@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0d">
+<meta name="color-scheme" content="dark">
+<title>Le Système</title>
+<meta name="description" content="Suivi quotidien des habitudes du matin, de la journée et du soir.">
+
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Pour l'ajout à l'écran d'accueil : icône, plein écran, hors ligne -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Système">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <div class="brand">LE&nbsp;<span>SYSTÈME</span></div>
+    <button class="synclamp" id="synclamp" hidden></button>
+    <nav class="tabs tabs-top" id="tabs-top" aria-label="Sections"></nav>
+  </div>
+</header>
+
+<main class="wrap main" id="views">
+  <section class="view" id="view-today" hidden></section>
+  <section class="view" id="view-tasks" hidden></section>
+  <section class="view" id="view-progress" hidden></section>
+  <section class="view" id="view-system" hidden></section>
+</main>
+
+<nav class="tabbar" id="tabs-bottom" aria-label="Sections"></nav>
+
+<div class="modal-root" id="modal-root" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/store.js"></script>
+
+<!-- Le coffre-fort en ligne. Si ces deux lignes n'aboutissent pas (pas de
+     réseau, ou config.js encore vide), l'application fonctionne quand même,
+     simplement sans synchronisation. -->
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script src="js/sync.js"></script>
+
+<script src="js/ui-today.js"></script>
+<script src="js/ui-tasks.js"></script>
+<script src="js/ui-progress.js"></script>
+<script src="js/ui-system.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

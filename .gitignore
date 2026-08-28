@@ -1,0 +1,4 @@
+# Fichiers de travail locaux, inutiles en ligne
+.claude/
+*.log
+le-systeme-sauvegarde-*.json
