@@ -190,6 +190,60 @@ App.sync = (function () {
     return true;
   }
 
+  /* La connexion par mot de passe n'envoie AUCUN email. C'est ce qui la
+     rend fiable : le service d'emails de Supabase est bride a quelques
+     envois par heure, et se retrouver bloque dehors une heure durant
+     serait inacceptable pour une app qu'on ouvre tous les matins. */
+  async function signInWithPassword(email, password) {
+    if (!client) throw new Error('Synchronisation non configurée');
+    var res = await client.auth.signInWithPassword({
+      email: String(email).trim(),
+      password: password
+    });
+    if (res.error) throw res.error;
+    return true;
+  }
+
+  /* Poser (ou changer) le mot de passe du compte deja connecte.
+     Le mot de passe part directement chez Supabase, qui n'en garde qu'une
+     empreinte : il n'est stocke nulle part dans l'app. */
+  async function setPassword(password) {
+    if (!client) throw new Error('Synchronisation non configurée');
+    if (!user) throw new Error('Il faut être connecté pour faire ça');
+    var res = await client.auth.updateUser({ password: password });
+    if (res.error) throw res.error;
+    return true;
+  }
+
+  /* Les messages de Supabase sont en anglais et souvent obscurs.
+     On traduit les cas qu'il rencontrera vraiment. */
+  function friendlyError(e) {
+    var m = (e && (e.message || e.msg)) ? String(e.message || e.msg) : String(e);
+    var low = m.toLowerCase();
+    if (low.indexOf('invalid login credentials') !== -1) {
+      return 'Email ou mot de passe incorrect.';
+    }
+    if (low.indexOf('email rate limit') !== -1 || low.indexOf('rate limit') !== -1) {
+      return 'Trop d’emails envoyés d’un coup. Attends une heure — ou connecte-toi avec ton mot de passe, qui n’envoie rien.';
+    }
+    if (low.indexOf('for security purposes') !== -1) {
+      return 'Un instant : Supabase demande d’attendre quelques secondes entre deux essais.';
+    }
+    if (low.indexOf('password should be at least') !== -1 || low.indexOf('weak password') !== -1) {
+      return 'Mot de passe trop court : il en faut au moins 8 caractères.';
+    }
+    if (low.indexOf('same as the old') !== -1 || low.indexOf('should be different') !== -1) {
+      return 'Ce mot de passe est déjà celui du compte. Choisis-en un autre.';
+    }
+    if (low.indexOf('failed to fetch') !== -1 || low.indexOf('networkerror') !== -1) {
+      return 'Pas de réseau. Tes données restent en sécurité sur cet appareil.';
+    }
+    if (low.indexOf('not confirmed') !== -1) {
+      return 'Ce compte n’est pas encore confirmé. Passe par le lien magique une première fois.';
+    }
+    return m;
+  }
+
   async function signOut() {
     if (!client) return;
     await client.auth.signOut();
@@ -308,8 +362,9 @@ App.sync = (function () {
 
   return {
     init: init, onChange: onChange, info: info,
-    sendMagicLink: sendMagicLink, signOut: signOut,
+    sendMagicLink: sendMagicLink, signInWithPassword: signInWithPassword,
+    setPassword: setPassword, signOut: signOut,
     syncNow: syncNow, resendEverything: resendEverything,
-    configured: configured
+    configured: configured, friendlyError: friendlyError
   };
 })();

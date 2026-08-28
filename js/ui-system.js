@@ -237,7 +237,113 @@ App.views.system = (function () {
   // ---------------------------------------------------------
   // Synchronisation entre appareils
   // ---------------------------------------------------------
-  var mailSentTo = null;   // le temps d'un affichage, apres l'envoi du lien
+  var mailSentTo = null;      // le temps d'un affichage, apres l'envoi du lien
+  var signinMode = 'password';// 'password' | 'magic'
+
+  /* La connexion par mot de passe est proposee EN PREMIER, et le lien
+     magique relegue au second plan. Raison : le service d'emails de
+     Supabase est bride a quelques envois par heure. Le mot de passe,
+     lui, n'envoie rien - donc il ne peut jamais laisser dehors. */
+  function passwordSignIn() {
+    var el = U().el;
+
+    var mail = el('input', {
+      class: 'field', type: 'email', inputmode: 'email', autocomplete: 'username',
+      placeholder: 'ton@email.fr', 'aria-label': 'Adresse email'
+    });
+    var pass = el('input', {
+      class: 'field', type: 'password', autocomplete: 'current-password',
+      placeholder: 'ton mot de passe', 'aria-label': 'Mot de passe',
+      onkeydown: function (ev) { if (ev.key === 'Enter') go(); }
+    });
+    var msg = el('div', { class: 'hint', style: 'color:var(--red)' });
+
+    function go() {
+      var e = mail.value.trim(), p = pass.value;
+      if (!e || e.indexOf('@') === -1) { msg.textContent = 'Il faut une adresse email.'; return; }
+      if (!p) { msg.textContent = 'Il faut ton mot de passe.'; return; }
+      msg.textContent = '';
+      U().toast('Connexion…');
+      App.sync.signInWithPassword(e, p).catch(function (err) {
+        console.error(err);
+        msg.textContent = App.sync.friendlyError(err);
+        App.render();
+      });
+    }
+
+    return el('div', { class: 'card', style: 'padding:14px' }, [
+      el('div', { style: 'font-size:15px;font-weight:600', text: 'Retrouver mes données partout' }),
+      el('div', {
+        class: 'hint', style: 'margin-bottom:12px',
+        text: 'Ton email et le mot de passe que tu as choisi. À faire une seule fois par appareil.'
+      }),
+      el('div', { style: 'display:flex;flex-direction:column;gap:8px' }, [
+        mail, pass,
+        el('button', { class: 'btn btn-gold btn-block', text: 'Se connecter', onclick: go })
+      ]),
+      msg,
+      el('div', { style: 'margin-top:14px;display:flex;flex-direction:column;gap:6px' }, [
+        el('button', {
+          class: 'btn btn-sm', text: 'Je n’ai pas encore de mot de passe',
+          onclick: function () { signinMode = 'magic'; App.render(); }
+        }),
+        el('div', {
+          class: 'hint', style: 'margin:0',
+          text: 'Tu recevras alors un lien par email. Une fois connecté, tu pourras définir ton mot de passe ici même.'
+        })
+      ])
+    ]);
+  }
+
+  /* Definir ou changer le mot de passe du compte. Le mot de passe est tape
+     ici par toi et part directement chez Supabase, qui n'en conserve qu'une
+     empreinte. Il n'est ecrit nulle part dans l'app, ni dans l'appareil. */
+  function passwordEditor() {
+    var el = U().el;
+    U().openModal('Mon mot de passe', function (box, api) {
+      box.appendChild(el('div', {
+        class: 'hint', style: 'margin:0 0 4px',
+        text: 'C’est ce mot de passe qui te connectera sur tes autres appareils, sans passer par ta boîte mail.'
+      }));
+
+      box.appendChild(el('span', { class: 'lab', text: 'nouveau mot de passe' }));
+      var p1 = el('input', {
+        class: 'field', type: 'password', autocomplete: 'new-password',
+        placeholder: '8 caractères minimum', 'aria-label': 'Nouveau mot de passe'
+      });
+      box.appendChild(p1);
+
+      box.appendChild(el('span', { class: 'lab', text: 'le même, pour être sûr' }));
+      var p2 = el('input', {
+        class: 'field', type: 'password', autocomplete: 'new-password',
+        'aria-label': 'Confirmation du mot de passe',
+        onkeydown: function (ev) { if (ev.key === 'Enter') valider(); }
+      });
+      box.appendChild(p2);
+
+      var msg = el('div', { class: 'hint', style: 'color:var(--red)' });
+      box.appendChild(msg);
+
+      function valider() {
+        var a = p1.value, b = p2.value;
+        if (a.length < 8) { msg.textContent = 'Il faut au moins 8 caractères.'; return; }
+        if (a !== b) { msg.textContent = 'Les deux ne sont pas identiques.'; return; }
+        msg.textContent = '';
+        App.sync.setPassword(a).then(function () {
+          api.close();
+          U().toast('Mot de passe enregistré');
+        }).catch(function (e) {
+          console.error(e);
+          msg.textContent = App.sync.friendlyError(e);
+        });
+      }
+
+      box.appendChild(el('div', { class: 'acts' }, [
+        el('button', { class: 'btn', text: 'Annuler', onclick: api.close }),
+        el('button', { class: 'btn btn-gold', text: 'Enregistrer', onclick: valider })
+      ]));
+    });
+  }
 
   function syncCard() {
     var el = U().el;
@@ -260,6 +366,7 @@ App.views.system = (function () {
 
     // --- configure mais pas connecte ---
     if (i.status === 'signedout' || i.status === 'off') {
+      if (signinMode === 'password') return passwordSignIn();
       if (mailSentTo) {
         return el('div', { class: 'card', style: 'padding:14px' }, [
           el('div', { style: 'font-size:15px;font-weight:600', text: 'Regarde ta boîte mail' }),
@@ -267,10 +374,14 @@ App.views.system = (function () {
             class: 'hint',
             text: 'Un lien vient de partir vers ' + mailSentTo + '. Ouvre-le sur CET appareil : il te connectera directement, sans mot de passe. Pense à regarder dans les indésirables.'
           }),
-          el('div', { class: 'row', style: 'margin-top:12px' }, [
+          el('div', { class: 'row', style: 'margin-top:12px;gap:8px;flex-wrap:wrap' }, [
             el('button', {
               class: 'btn btn-sm', text: 'Utiliser une autre adresse',
               onclick: function () { mailSentTo = null; App.render(); }
+            }),
+            el('button', {
+              class: 'btn btn-sm', text: 'Revenir au mot de passe',
+              onclick: function () { mailSentTo = null; signinMode = 'password'; App.render(); }
             })
           ])
         ]);
@@ -289,7 +400,7 @@ App.views.system = (function () {
           mailSentTo = v; App.render();
         }).catch(function (e) {
           console.error(e);
-          U().toast('Envoi impossible : ' + (e.message || 'réessaie dans un instant'));
+          U().toast(App.sync.friendlyError(e));
         });
       }
 
@@ -302,7 +413,12 @@ App.views.system = (function () {
         el('div', { class: 'row', style: 'gap:8px' }, [
           mail,
           el('button', { class: 'btn btn-gold', text: 'Recevoir', onclick: send })
-        ])
+        ]),
+        el('button', {
+          class: 'btn btn-sm', style: 'margin-top:12px',
+          text: 'Revenir au mot de passe',
+          onclick: function () { signinMode = 'password'; App.render(); }
+        })
       ]);
     }
 
@@ -344,6 +460,10 @@ App.views.system = (function () {
                 U().toast('Renvoi en cours…');
               });
           }
+        }),
+        el('button', {
+          class: 'btn btn-sm', text: 'Mon mot de passe',
+          onclick: passwordEditor
         }),
         el('button', {
           class: 'btn btn-sm btn-danger', text: 'Se déconnecter',
