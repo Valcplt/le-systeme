@@ -79,6 +79,13 @@ Conséquences, **non négociables** :
 - **Pour tester en local**, un petit serveur PowerShell existe :
   `.claude/launch.json` → `preview_start` avec le nom `le-systeme`
   (port 8123). Il sert simplement les fichiers du dossier.
+  Le script est `.claude/serve.ps1`. Il détermine sa racine tout seul
+  (`$PSScriptRoot`), donc déplacer le dossier ne le casse pas — ne pas le
+  remplacer par un chemin absolu écrit en dur, c'est ce qui l'avait cassé
+  une première fois. Attention : `.claude/` est ignoré par Git (voir
+  `.gitignore`), le script ne suit donc pas le dépôt. Sur une nouvelle
+  machine, il est à recréer, ou n'importe quel serveur statique fait
+  l'affaire.
 
 ## 4. Architecture
 
