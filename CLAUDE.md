@@ -57,19 +57,25 @@ données.** Les six garde-fous ci-dessous existent pour ça.
 
 ## 3. Contraintes de la machine
 
-Vérifié le 28 août 2026 sur son PC Windows 11 :
+Revérifié le 30 août 2026 sur son PC Windows 11 :
 
 | Outil | État |
 |---|---|
-| Git | installé |
-| Node.js / npm | **absents** |
+| Git | installé (2.55.0) |
+| Node.js / npm | **installés** (v24.20.0 / 11.19.0). Ils étaient absents le 28 août, la fiche l'affirmait encore à tort |
 | Python | **absent** (le `python.exe` trouvé est le raccourci Microsoft Store, non fonctionnel) |
-| GitHub CLI (`gh`) | **installé, mais absent du `PATH`** — voir §9 pour le chemin exact et le compte déjà authentifié |
+| GitHub CLI (`gh`) | installé (2.98.0), **dans le `PATH`**, appelable par son nom. Compte `Valcplt` authentifié |
+| ffmpeg | installé (9.0.1), utile pour l'optimisation des médias |
 
 Conséquences, **non négociables** :
 
-- **Aucune étape de compilation.** Pas de npm, pas de bundler, pas de
-  TypeScript, pas de React. HTML + CSS + JavaScript ordinaires.
+- **Aucune étape de compilation.** Pas de bundler, pas de TypeScript, pas
+  de React. HTML + CSS + JavaScript ordinaires.
+  Attention : cette règle ne tient plus à l'absence de Node, qui est
+  désormais installé. C'est devenu un **choix de conception**, et il reste
+  le bon : l'app doit pouvoir s'ouvrir en double-cliquant `index.html`,
+  ce qu'une étape de build casserait. Ne pas revenir dessus sans lui en
+  parler, mais ne plus invoquer « Node est absent » comme raison.
 - **Pas de `<script type="module">`.** Les modules ES sont bloqués par le
   navigateur sur un fichier ouvert en `file://` : l'app doit rester
   ouvrable en double-cliquant `index.html`. Scripts classiques, un objet
@@ -265,9 +271,10 @@ sont donc atteignables par personne depuis l'app.
 **En ligne à :** https://valcplt.github.io/le-systeme/
 **Dépôt :** https://github.com/Valcplt/le-systeme (public, branche `main`)
 
-`gh` **est installé** malgré ce que laisse croire le PATH :
-`C:\Program Files\GitHub CLI\gh.exe`, compte `Valcplt` déjà authentifié
-(scopes `repo`, `workflow`). L'appeler par son chemin complet.
+`gh` est installé **et dans le `PATH`** : l'appeler simplement par `gh`.
+Compte `Valcplt` authentifié, scopes `gist`, `read:org`, `repo`,
+`workflow`. Le chemin complet `C:\Program Files\GitHub CLI\gh.exe` reste
+un recours si une session hérite d'un environnement périmé.
 
 **La recette, dans l'ordre :**
 
