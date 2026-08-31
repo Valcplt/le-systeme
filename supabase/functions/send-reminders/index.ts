@@ -80,7 +80,7 @@ function texteDuRappel(kind: string, nbTaches: number) {
   }
   return {
     title: 'Le Système',
-    body: 'Ta journée n’est pas encore cochée.',
+    body: 'Tes habitudes du soir ne sont pas cochées.',
     tag: 'rappel-journee',
     tab: 'today'
   };
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
 
     /* Toute la regle du "qui recoit quoi" vit dans la fonction SQL
-       rappels_a_envoyer (migration 005). Ici, on ne fait que livrer. */
+       rappels_a_envoyer (migrations 005 puis 007). Ici, on ne fait que livrer. */
     const { data: lignes, error } = await admin.rpc('rappels_a_envoyer');
     if (error) return repond({ error: error.message }, 500);
     if (!lignes?.length) return repond({ sent: 0, groups: 0 });
@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
 
     let envoyes = 0;
     const perimes: string[] = [];
+    const erreursCarnet: string[] = [];
 
     for (const [, lot] of groupes) {
       const t = texteDuRappel(lot[0].p_kind, Number(lot[0].p_nb_taches));
@@ -153,16 +154,30 @@ Deno.serve(async (req) => {
          Sinon, le prochain passage reessaiera - la fenetre de 90 minutes
          de la migration 005 borne d'elle-meme le nombre de tentatives. */
       if (auMoinsUn) {
-        await admin.from('notif_sent').upsert({
+        const { error: errCarnet } = await admin.from('notif_sent').upsert({
           user_id: lot[0].p_user_id, day: lot[0].p_jour, kind: lot[0].p_kind
         }, { onConflict: 'user_id,day,kind' });
+
+        /* Cette erreur ne doit JAMAIS passer inapercue. Si l'inscription
+           au carnet echoue, plus rien n'empeche le rappel de repartir au
+           prochain passage, puis au suivant, toutes les 15 minutes.
+           Le 31 aout 2026, elle echouait faute d'un droit sur la table,
+           en silence : trois appels, trois notifications. On la remonte
+           donc dans la reponse, ou elle se voit. */
+        if (errCarnet) {
+          console.error('CARNET NON MIS A JOUR', errCarnet.message);
+          erreursCarnet.push(errCarnet.message);
+        }
       }
     }
 
     if (perimes.length) {
       await admin.from('push_subscriptions').delete().in('endpoint', perimes);
     }
-    return repond({ sent: envoyes, groups: groupes.size, removed: perimes.length });
+    return repond({
+      sent: envoyes, groups: groupes.size, removed: perimes.length,
+      carnet: erreursCarnet.length ? erreursCarnet : 'ok'
+    }, erreursCarnet.length ? 500 : 200);
   }
 
   // =========================================================

@@ -308,11 +308,23 @@ au rôle `authenticated` : seul le serveur y écrit.
 | Type | Quand | Condition |
 |---|---|---|
 | `tasks` | heure choisie (12:00 par défaut) | il reste des tâches non faites datées d'aujourd'hui |
-| `fill` | heure choisie (21:00 par défaut) | **rien** n'a été coché de la journée |
+| `fill` | heure choisie (21:00 par défaut) | **rien** n'a été coché dans le bloc **Soir** |
 
 Les heures vivent dans `settings`, donc elles suivent la personne d'un
 appareil à l'autre. Ce qui est propre à l'appareil (être abonné, dans quel
 fuseau) vit dans `push_subscriptions`. Deux portées, deux endroits.
+
+Le rappel du soir a d'abord regardé la journée entière. Corrigé le jour
+même, à sa demande, et il avait raison : cocher une seule case le matin
+suffisait à désarmer le rappel alors que la soirée restait vide, c'est-à-dire
+exactement le cas où il sert (migration 007). Deux conditions désormais :
+qu'une habitude du soir soit **prévue** ce jour-là, sinon quelqu'un sans
+habitude du soir serait rappelé tous les soirs pour rien ; et que rien n'y
+ait été coché.
+
+C'est le seul endroit du serveur qui reprend une règle de l'application
+(les critères de `countsOn()`, §6). Si cette règle change, la migration 007
+est à revoir avec.
 
 **Trois garde-fous, à ne pas retirer :**
 
@@ -362,7 +374,23 @@ Choix assumés, à ne pas défaire sans lui en parler :
   Faute d'iPhone sous la main, ce chemin n'a jamais été vérifié : ne pas
   l'affirmer.
 
-**Le piège rencontré, à retenir :** un envoi peut être accepté par Google
+**Deux pièges rencontrés le 31 août 2026, tous deux instructifs :**
+
+**1. La même erreur que la migration 002, refaite.** Le carnet `notif_sent`
+est écrit sous le rôle `service_role`. On avait supposé que ce rôle,
+qui contourne le verrou RLS, pouvait donc écrire partout. Faux : la RLS
+dit quelles **lignes** on voit, le `grant` dit quelle **table** on a le
+droit d'ouvrir. Contourner l'une ne donne rien sur l'autre. L'écriture
+échouait, le carnet restait vide, et le même rappel repartait à chaque
+passage : trois appels d'affilée, trois notifications. Corrigé par la
+migration 008.
+
+*La vraie leçon n'est pas le droit manquant, c'est le silence.* L'erreur
+de cette écriture n'était pas vérifiée. Elle l'est désormais, et remontée
+dans la réponse de la fonction. Une écriture dont on ignore le résultat
+est une écriture dont on ignore l'échec.
+
+**2.** Un envoi peut être accepté par Google
 (`last_ok_at` renseigné, `fail_count` à zéro) et pourtant ne rien
 afficher, simplement parce que **Windows n'autorise pas les notifications de
 Chrome**. Avant de soupçonner le code, couper la chaîne en deux avec, dans
@@ -412,6 +440,16 @@ lecture et écriture anonymes refusées sur les 4 tables.
   `js/notif.js`, écouteurs `push` et `notificationclick` dans
   `sw.js`, carte « rappels » dans l'onglet Système, tâche `pg_cron`
   toutes les 15 minutes. Service worker en `v5`. Détail complet en §8 bis.
+  *Le rappel du soir a été corrigé le jour même, à sa demande.* Il regardait
+  d'abord la journée entière : cocher une case le matin suffisait à le
+  désarmer alors que la soirée restait vide, c'est-à-dire exactement le cas
+  où il sert. Il ne regarde plus que le bloc Soir (migration 007).
+  *Un défaut attrapé par le test, pas par la lecture :* l'anti-doublon ne
+  fonctionnait pas, faute d'un `grant` au rôle serveur sur `notif_sent` —
+  la leçon de la migration 002, refaite à l'identique. Trois appels
+  d'affilée envoyaient trois notifications. Migration 008, et l'erreur de
+  cette écriture est maintenant vérifiée au lieu d'être ignorée. Détail
+  en §8 bis.
   **Le schéma des données est passé en version 2**, premier usage réel du
   mécanisme de migration prévu à la création. La migration ne touche pas à
   `settings.updatedAt` : le faire ferait croire à la synchronisation que

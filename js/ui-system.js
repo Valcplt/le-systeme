@@ -630,8 +630,8 @@ App.views.system = (function () {
       if (reg.notifEnabled !== false) {
         corps.appendChild(ligneHeure('Tâches du jour', 'remindTasksAt',
           'Seulement s’il reste des tâches non faites datées d’aujourd’hui.'));
-        corps.appendChild(ligneHeure('Journée pas encore cochée', 'remindFillAt',
-          'Seulement si aucune habitude n’a été cochée de la journée.'));
+        corps.appendChild(ligneHeure('Rien de coché le soir', 'remindFillAt',
+          'Seulement si aucune habitude du bloc Soir n’a été cochée. Ce que tu as fait le matin ou dans la journée ne compte pas.'));
       }
 
       corps.appendChild(el('div', {
