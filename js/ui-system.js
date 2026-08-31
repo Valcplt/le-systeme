@@ -580,8 +580,63 @@ App.views.system = (function () {
 
     // --- actif ---
     if (n.status === 'on') {
-      return carte('Rappels activés', 'Sur cet appareil : ' + App.notif.deviceLabel() + '.',
-        el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
+      var reg = S.state.settings;
+
+      /* Une ligne de reglage d'heure. On ecoute "change" et non "input" :
+         le rendu complet de l'app couperait la saisie autrement. C'est la
+         meme regle que partout ailleurs dans le projet. */
+      function ligneHeure(libelle, champ, aide) {
+        return el('div', { style: 'margin-top:14px' }, [
+          el('div', { class: 'row', style: 'gap:10px;align-items:center' }, [
+            el('span', { style: 'font-size:14px;flex:1', text: libelle }),
+            el('input', {
+              type: 'time', class: 'timein',
+              value: S.minutesToHHMM(reg[champ]),
+              'aria-label': libelle,
+              onchange: function () {
+                var m = S.hhmmToMinutes(this.value);
+                if (m === null) return;
+                var p = {}; p[champ] = m;
+                S.setNotifPrefs(p);
+                U().toast('Rappel réglé sur ' + S.minutesToHHMM(m));
+              }
+            })
+          ]),
+          el('div', { class: 'hint', style: 'margin:4px 0 0', text: aide })
+        ]);
+      }
+
+      var corps = el('div', {}, [
+        /* L'interrupteur general est un reglage de COMPTE : il coupe les
+           rappels partout a la fois. Le bouton rouge plus bas, lui, ne
+           concerne que cet appareil. Deux portees differentes, deux
+           commandes differentes. */
+        el('div', { class: 'row', style: 'gap:10px;align-items:center;margin-top:4px' }, [
+          el('span', { style: 'font-size:14px;flex:1', text: 'Recevoir les rappels automatiques' }),
+          el('button', {
+            class: 'btn btn-sm', text: reg.notifEnabled === false ? 'Non' : 'Oui',
+            'aria-pressed': String(reg.notifEnabled !== false),
+            onclick: function () {
+              S.setNotifPrefs({ notifEnabled: reg.notifEnabled === false });
+            }
+          })
+        ]),
+        el('div', {
+          class: 'hint', style: 'margin:4px 0 0',
+          text: 'Vaut pour tous tes appareils. Les tests ci-dessous partent quand même.'
+        })
+      ]);
+
+      if (reg.notifEnabled !== false) {
+        corps.appendChild(ligneHeure('Tâches du jour', 'remindTasksAt',
+          'Seulement s’il reste des tâches non faites datées d’aujourd’hui.'));
+        corps.appendChild(ligneHeure('Journée pas encore cochée', 'remindFillAt',
+          'Seulement si aucune habitude n’a été cochée de la journée.'));
+      }
+
+      corps.appendChild(el('div', {
+        class: 'row', style: 'gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)'
+      }, [
           el('button', {
             class: 'btn btn-sm', text: 'M’envoyer un test',
             onclick: function () {
@@ -604,7 +659,9 @@ App.views.system = (function () {
                 });
             }
           })
-        ]));
+      ]));
+
+      return carte('Rappels activés', 'Sur cet appareil : ' + App.notif.deviceLabel() + '.', corps);
     }
 
     // --- pret a etre active ---

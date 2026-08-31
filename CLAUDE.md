@@ -133,8 +133,14 @@ Une seule clé `localStorage` : `lesysteme.data`.
 
 ```
 {
-  schemaVersion: 1,
-  settings: { dailyGoal: 85, updatedAt },
+  schemaVersion: 2,
+  settings: {
+    dailyGoal: 85,
+    notifEnabled: true,     // rappels automatiques, pour TOUS ses appareils
+    remindTasksAt: 720,     // 12:00, en minutes depuis minuit
+    remindFillAt: 1260,     // 21:00
+    updatedAt
+  },
   habits: [ {
     id, name, section: 'morning'|'day'|'evening',
     type: 'binary'|'duration'|'time',
@@ -297,8 +303,48 @@ et `notif_sent` (le carnet anti-doublon, dont la clé primaire
 quatre tables d'origine. `notif_sent` n'est volontairement PAS accessible
 au rôle `authenticated` : seul le serveur y écrit.
 
-**Ce qui existe aujourd'hui :** l'activation par appareil et l'envoi de
-test. **Ce qui manque :** les rappels programmés (palier 3).
+**Les deux rappels, et rien d'autre :**
+
+| Type | Quand | Condition |
+|---|---|---|
+| `tasks` | heure choisie (12:00 par défaut) | il reste des tâches non faites datées d'aujourd'hui |
+| `fill` | heure choisie (21:00 par défaut) | **rien** n'a été coché de la journée |
+
+Les heures vivent dans `settings`, donc elles suivent la personne d'un
+appareil à l'autre. Ce qui est propre à l'appareil (être abonné, dans quel
+fuseau) vit dans `push_subscriptions`. Deux portées, deux endroits.
+
+**Trois garde-fous, à ne pas retirer :**
+
+1. **L'heure est celle de la personne**, pas celle du serveur. Le fuseau
+   retenu est celui de son abonnement le plus récent.
+2. **Une fenêtre de 90 minutes.** Activer les rappels à 23 h ne doit pas
+   déclencher d'un coup celui de midi. Elle tolère aussi cinq passages
+   manqués d'affilée sans perdre le rappel du jour.
+3. **Le carnet `notif_sent`.** Sa clé primaire `user_id + day + kind`
+   porte toute la garantie : la tâche repassant tous les quarts d'heure,
+   sans lui un rappel partirait quatre fois par heure jusqu'à minuit.
+   Il n'est rempli **que si l'envoi a réussi** : sinon le passage suivant
+   réessaie.
+
+**Où vit quoi :**
+
+- `rappels_a_envoyer()` (migration 005) répond à « qui reçoit quoi
+  maintenant ». Toute la règle est là, en un seul tenant. En
+  `security definer` avec `search_path` figé, exécutable par le seul
+  `service_role` : elle voit les données de tout le monde.
+- La fonction `send-reminders` ne fait que livrer. Elle a **deux
+  portes** : le jeton d'une personne (envoi de test, vers ses appareils
+  seulement) ou le secret partagé (le vrai tour). Sans l'un ni l'autre,
+  401. C'est pourquoi `verify_jwt` est à `false` : elle fait
+  elle-même le tri, ce qu'un contrôle unique ne saurait pas faire.
+- `pg_cron` (migration 006) appelle toutes les 15 minutes, en lisant le
+  secret dans le Vault.
+
+**Le secret partagé existe en DEUX exemplaires**, qui doivent être
+identiques : dans le Vault sous `cron_secret`, et dans les secrets
+d'Edge Function sous `CRON_SECRET`. Ni l'un ni l'autre n'est dans Git.
+S'ils diffèrent, les rappels ne partent pas, sans autre dégât.
 
 Choix assumés, à ne pas défaire sans lui en parler :
 
@@ -361,12 +407,16 @@ lecture et écriture anonymes refusées sur les 4 tables.
 ## 10. Journal
 
 - **31 août 2026 — les rappels, et l'app rendue partageable.**
-  *Rappels (paliers 1 et 2 sur 3).* Chaîne d'envoi complète et vérifiée sur
-  son PC : migration 003, fonction `send-reminders` déployée,
+  *Rappels, les trois paliers.* Chaîne d'envoi vérifiée sur son PC **puis
+  sur son Android** : migrations 003 à 006, fonction `send-reminders`,
   `js/notif.js`, écouteurs `push` et `notificationclick` dans
-  `sw.js`, carte « rappels » dans l'onglet Système. Service worker en
-  `v4`. Restent les rappels programmés (préférences d'heures, règles SQL,
-  `pg_cron`), qui feront passer le schéma des données en version 2.
+  `sw.js`, carte « rappels » dans l'onglet Système, tâche `pg_cron`
+  toutes les 15 minutes. Service worker en `v5`. Détail complet en §8 bis.
+  **Le schéma des données est passé en version 2**, premier usage réel du
+  mécanisme de migration prévu à la création. La migration ne touche pas à
+  `settings.updatedAt` : le faire ferait croire à la synchronisation que
+  ces réglages viennent d'être choisis sur cet appareil, et ils
+  écraseraient ceux d'un autre.
   *Multi-utilisateur.* Les deux défauts qui empêchaient de donner le lien à
   quelqu'un sont corrigés (voir §11). L'app n'est pas encore ouverte aux
   inconnus, c'était le choix : solidifier d'abord.

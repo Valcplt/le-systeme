@@ -17,7 +17,7 @@
    C'est ce qui dit au navigateur "jette l'ancien code, prends le neuf".
    ========================================================= */
 
-var VERSION = 'v4';
+var VERSION = 'v5';
 var CACHE = 'lesysteme-code-' + VERSION;
 
 /* Le strict necessaire pour que l'app demarre hors ligne. */

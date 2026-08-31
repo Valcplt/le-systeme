@@ -338,7 +338,19 @@ App.sync = (function () {
     results.entries.forEach(function (r) { if (S.mergeEntry(rowToEntry(r))) changed++; });
     results.tasks.forEach(function (r) { if (S.mergeTask(rowToTask(r))) changed++; });
     results.settings.forEach(function (r) {
-      if (S.mergeSettings({ dailyGoal: r.daily_goal, updatedAt: ts(r.updated_at) })) changed++;
+      /* mergeSettings REMPLACE l'objet entier quand la version du cloud
+         est plus recente. Tout champ oublie ici disparaitrait donc de
+         l'appareil a la premiere synchro - c'est le piege a garder en
+         tete en ajoutant un reglage. */
+      if (S.mergeSettings({
+        dailyGoal: r.daily_goal,
+        notifEnabled: r.notif_enabled !== false,
+        remindTasksAt: r.remind_tasks_at === null || r.remind_tasks_at === undefined
+          ? 720 : Number(r.remind_tasks_at),
+        remindFillAt: r.remind_fill_at === null || r.remind_fill_at === undefined
+          ? 1260 : Number(r.remind_fill_at),
+        updatedAt: ts(r.updated_at)
+      })) changed++;
     });
 
     TABLES.forEach(function (t) { seen(results[t]); });
@@ -373,6 +385,9 @@ App.sync = (function () {
       var res = await client.from('settings').upsert({
         user_id: user.id,
         daily_goal: batch.settings.dailyGoal,
+        notif_enabled: batch.settings.notifEnabled !== false,
+        remind_tasks_at: batch.settings.remindTasksAt,
+        remind_fill_at: batch.settings.remindFillAt,
         updated_at: batch.settings.updatedAt
       }, { onConflict: 'user_id' });
       if (res.error) throw res.error;

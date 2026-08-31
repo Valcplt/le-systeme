@@ -17,7 +17,15 @@ window.App = App;
   // additive. Voir CLAUDE.md, section "Regles d'or".
   // ---------------------------------------------------------
   var STORAGE_KEY = 'lesysteme.data';
-  var SCHEMA_VERSION = 1;
+  var SCHEMA_VERSION = 2;   // 2 : reglages des rappels (31 aout 2026)
+
+  /* Les valeurs par defaut des rappels, au meme endroit pour la creation
+     et pour la migration : deux listes separees finiraient par diverger. */
+  var RAPPELS_DEFAUT = {
+    notifEnabled: true,
+    remindTasksAt: 12 * 60,   // 12:00, en minutes depuis minuit
+    remindFillAt: 21 * 60     // 21:00
+  };
 
   var DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   var DAY_SHORT = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
@@ -161,7 +169,13 @@ window.App = App;
   function emptyState() {
     return {
       schemaVersion: SCHEMA_VERSION,
-      settings: { dailyGoal: 85, updatedAt: now() },
+      settings: {
+        dailyGoal: 85,
+        notifEnabled: RAPPELS_DEFAUT.notifEnabled,
+        remindTasksAt: RAPPELS_DEFAUT.remindTasksAt,
+        remindFillAt: RAPPELS_DEFAUT.remindFillAt,
+        updatedAt: now()
+      },
       habits: [],
       entries: {},   // cle "AAAA-MM-JJ|idHabitude" -> enregistrement
       tasks: [],
@@ -186,8 +200,25 @@ window.App = App;
   function migrate(s) {
     if (!s || typeof s !== 'object') return emptyState();
     var v = s.schemaVersion || 0;
-    // --- Les futures migrations viennent ici, une par version, ADDITIVES.
-    // if (v < 2) { ...ajouter le nouveau champ avec une valeur par defaut... ; v = 2; }
+
+    /* --- version 1 -> 2 : les reglages des rappels ---
+       Purement additif : on pose trois champs manquants avec leur valeur
+       par defaut. Aucune donnee existante n'est lue, modifiee ni relue de
+       travers. Une sauvegarde exportee avant aujourd'hui repasse donc ici
+       sans encombre.
+       On ne touche PAS a settings.updatedAt : le faire ferait croire a la
+       synchronisation que ces reglages viennent d'etre changes sur cet
+       appareil, et ils ecraseraient ceux d'un autre appareil ou ils
+       auraient ete regles pour de vrai. */
+    if (v < 2) {
+      if (s.settings) {
+        for (var champ in RAPPELS_DEFAUT) {
+          if (s.settings[champ] === undefined) s.settings[champ] = RAPPELS_DEFAUT[champ];
+        }
+      }
+      v = 2;
+    }
+
     if (v > SCHEMA_VERSION) {
       // Donnees ecrites par une version PLUS RECENTE de l'app : on ne
       // les abime pas, on les laisse telles quelles.
@@ -197,6 +228,9 @@ window.App = App;
     s.schemaVersion = SCHEMA_VERSION;
     if (!s.settings) s.settings = { dailyGoal: 85, updatedAt: now() };
     if (typeof s.settings.dailyGoal !== 'number') s.settings.dailyGoal = 85;
+    if (typeof s.settings.notifEnabled !== 'boolean') s.settings.notifEnabled = RAPPELS_DEFAUT.notifEnabled;
+    if (typeof s.settings.remindTasksAt !== 'number') s.settings.remindTasksAt = RAPPELS_DEFAUT.remindTasksAt;
+    if (typeof s.settings.remindFillAt !== 'number') s.settings.remindFillAt = RAPPELS_DEFAUT.remindFillAt;
     if (!Array.isArray(s.habits)) s.habits = [];
     if (!s.entries || typeof s.entries !== 'object') s.entries = {};
     if (!Array.isArray(s.tasks)) s.tasks = [];
@@ -466,6 +500,19 @@ window.App = App;
     save();
   }
 
+  /* Les reglages des rappels vivent dans settings, donc ils SUIVENT la
+     personne d'un appareil a l'autre : regler 21 h sur le PC vaut aussi
+     pour le telephone. Ce qui est propre a l'appareil (etre abonne ou
+     non) vit ailleurs, dans push_subscriptions. */
+  function setNotifPrefs(patch) {
+    for (var p in patch) {
+      if (Object.prototype.hasOwnProperty.call(patch, p)) state.settings[p] = patch[p];
+    }
+    state.settings.updatedAt = now();
+    save();
+    return state.settings;
+  }
+
   // ---------- gestion des habitudes ----------
   function addHabit(section) {
     var h = {
@@ -730,7 +777,8 @@ window.App = App;
     moveTask: moveTask, removeTask: removeTask, clearDoneTasks: clearDoneTasks,
 
     // reglages + sauvegarde
-    setGoal: setGoal, exportData: exportData, importData: importData,
+    setGoal: setGoal, setNotifPrefs: setNotifPrefs,
+    exportData: exportData, importData: importData,
     restoreData: restoreData, undoRestore: undoRestore, hasUndoRestore: hasUndoRestore,
     resetForNewUser: resetForNewUser, listArchives: listArchives,
     seedFromTemplate: seedFromTemplate,
