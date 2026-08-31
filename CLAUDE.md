@@ -107,7 +107,8 @@ la synchro cloud viendra par-dessus, en arrière-plan.
 | `js/ui-tasks.js` | Onglet Tâches (glisser-déposer souris + doigt via Pointer Events) |
 | `js/ui-progress.js` | Onglet Progression (graphique SVG écrit à la main, calendrier, régularité) |
 | `js/ui-system.js` | Onglet Système (objectif, éditeur d'habitude, sauvegardes) |
-| `js/sync.js` | Connexion par lien magique + synchro Supabase. Seul fichier en `async/await` |
+| `js/sync.js` | Connexion par lien magique + synchro Supabase. En `async/await`, comme `notif.js` |
+| `js/notif.js` | Les rappels : permission, abonnement, désabonnement (voir §8 bis) |
 | `config.js` | URL + clé publique Supabase. Vides = mode local pur, l'app marche quand même |
 | `js/app.js` | Outils communs (`App.ui.el`, modale, toast), onglets, démarrage. **Chargé en dernier** |
 | `sw.js` | Mode hors ligne : ne met en cache QUE le code (voir règle d'or n°6, §9) |
@@ -266,6 +267,63 @@ Un schéma `sauvegarde` contient des copies datées des tables, prises
 avant les réparations. PostgREST n'expose que `public` : ces copies ne
 sont donc atteignables par personne depuis l'app.
 
+## 8 bis. Les rappels par notification (étape 4, en cours)
+
+**Pourquoi une pièce serveur.** Une page web ne s'exécute que lorsqu'elle
+est ouverte. Un rappel qui ne partirait que pendant qu'il regarde l'app ne
+servirait à rien : c'est justement quand il ne la regarde pas qu'il faut la
+lui rappeler. D'où une fonction hébergée chez Supabase, la seule partie du
+projet qui ne tourne pas dans le navigateur.
+
+La chaîne, de bout en bout :
+
+```
+pg_cron (toutes les 15 min, palier 3)
+  -> pg_net appelle la fonction "send-reminders"
+     -> elle signe l'envoi avec la clé VAPID privée
+        -> Google / Apple / Mozilla livrent au téléphone
+           -> sw.js affiche la notification
+```
+
+**Les clés VAPID.** Une paire, générée une fois. La **publique** vit dans
+`config.js`, elle est faite pour être lue. La **privée** vit UNIQUEMENT
+dans les secrets Supabase (Settings → Edge Functions), jamais dans le code
+ni dans Git. Trois secrets sont posés : `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+
+**Migration 003** : `push_subscriptions` (un appareil abonné = une ligne)
+et `notif_sent` (le carnet anti-doublon, dont la clé primaire
+`user_id + day + kind` porte toute la garantie). Mêmes verrous que les
+quatre tables d'origine. `notif_sent` n'est volontairement PAS accessible
+au rôle `authenticated` : seul le serveur y écrit.
+
+**Ce qui existe aujourd'hui :** l'activation par appareil et l'envoi de
+test. **Ce qui manque :** les rappels programmés (palier 3).
+
+Choix assumés, à ne pas défaire sans lui en parler :
+
+- **Pas de score dans les rappels.** Dire « tu es hors des rails »
+  obligerait à réécrire la règle du score (§6) en SQL, donc à la maintenir
+  en deux endroits. Les rappels s'en tiennent à des faits simples : la
+  journée est-elle cochée, reste-t-il des tâches.
+- **La permission part d'un bouton**, jamais du démarrage. Une demande qui
+  surgit à l'ouverture est refusée par réflexe, et le navigateur ne la
+  represente plus jamais.
+- **iPhone : écrit, jamais testé.** Le code Web Push est un standard,
+  identique partout. Apple pose une condition de plus : l'app doit être sur
+  l'écran d'accueil, sinon les notifications n'existent pas dans l'onglet.
+  C'est détecté (`ios-home-screen`) pour afficher la marche à suivre.
+  Faute d'iPhone sous la main, ce chemin n'a jamais été vérifié : ne pas
+  l'affirmer.
+
+**Le piège rencontré, à retenir :** un envoi peut être accepté par Google
+(`last_ok_at` renseigné, `fail_count` à zéro) et pourtant ne rien
+afficher, simplement parce que **Windows n'autorise pas les notifications de
+Chrome**. Avant de soupçonner le code, couper la chaîne en deux avec, dans
+la console : `navigator.serviceWorker.ready.then(r => r.showNotification('test'))`.
+Si cette bulle n'apparaît pas, le problème est dans le système, pas dans
+l'app.
+
 ## 9. Publier une mise à jour (étape 3, faite)
 
 **En ligne à :** https://valcplt.github.io/le-systeme/
@@ -302,6 +360,21 @@ lecture et écriture anonymes refusées sur les 4 tables.
 
 ## 10. Journal
 
+- **31 août 2026 — les rappels, et l'app rendue partageable.**
+  *Rappels (paliers 1 et 2 sur 3).* Chaîne d'envoi complète et vérifiée sur
+  son PC : migration 003, fonction `send-reminders` déployée,
+  `js/notif.js`, écouteurs `push` et `notificationclick` dans
+  `sw.js`, carte « rappels » dans l'onglet Système. Service worker en
+  `v4`. Restent les rappels programmés (préférences d'heures, règles SQL,
+  `pg_cron`), qui feront passer le schéma des données en version 2.
+  *Multi-utilisateur.* Les deux défauts qui empêchaient de donner le lien à
+  quelqu'un sont corrigés (voir §11). L'app n'est pas encore ouverte aux
+  inconnus, c'était le choix : solidifier d'abord.
+  *Fait notable :* des tests écrits en Node (jetables, hors dépôt) ont
+  attrapé un défaut d'archivage avant qu'il n'atteigne l'app. Node étant
+  désormais installé, l'affirmation « pas de tests automatisés » du §7 n'est
+  plus une fatalité : un test jetable qui charge `store.js` dans un faux
+  navigateur coûte quelques minutes et vérifie la règle du score.
 - **28 août 2026 — étape 1.** Application complète en local : 4 onglets,
   calcul du score, export / import / restauration, données de départ
   reprenant ses 14 habitudes réelles. Testée à la souris et au format
@@ -351,27 +424,40 @@ lecture et écriture anonymes refusées sur les 4 tables.
 
 ## 11. Explicitement remis à plus tard (V2)
 
-- Les rappels / notifications.
 - L'import de son ancien fichier Excel (il a choisi de repartir de zéro).
+- **Le rappel « hors des rails »**, qui supposerait de porter la règle du
+  score en SQL. Écarté sciemment le 31 août 2026, voir §8 bis.
 - **Le multi-utilisateur.** Décidé le 28 août 2026 : on finit l'app pour
   son usage seul, quitte à y revenir. Ce qui est **déjà bon** : côté
   cloud, chaque compte est étanche (RLS + `user_id`), un proche qui se
   connecte repart avec ses propres données, sans une ligne de code à
   changer. Ce qui **manque** avant d'ouvrir à d'autres, par ordre
   d'importance :
-  1. *Deux personnes sur le même appareil.* `localStorage` n'est attaché à
-     aucun compte. Si un second compte se connecte sur un appareil déjà
-     rempli, `push()` (dans `js/sync.js`) envoie **tout l'historique local
-     dans le compte du nouveau venu** — `keyPushed()` étant vide pour lui,
-     `recordsSince('')` renvoie tout. Correctif : mémoriser le dernier
-     `user.id` utilisé sur l'appareil ; s'il change, archiver
-     `lesysteme.data` sous une autre clé et repartir d'un `emptyState()`
-     avant la première synchro.
-  2. Les 14 habitudes de départ sont les siennes, écrites en dur dans
-     `seedHabits()`. Il faudrait un démarrage vierge pour les autres.
+  1. ~~*Deux personnes sur le même appareil.*~~ **Corrigé le 31 août 2026.**
+     `guardAccountChange()` dans `js/sync.js` retient le dernier
+     `user.id` de l'appareil (`lesysteme.lastUserId`) ; s'il change,
+     `resetForNewUser()` archive `lesysteme.data` sous
+     `lesysteme.data.archive.<id>.<date>` et repart d'un état vide
+     **avant** la première synchro. Sans quoi `recordsSince('')` aurait
+     envoyé tout l'historique du précédent dans le compte du nouveau venu.
+     *Détail qui compte :* l'archive copie l'état EN MÉMOIRE, pas
+     `localStorage`. `save()` différant l'écriture de 120 ms, archiver
+     le disque perdrait la dernière coche. Une première version le faisait,
+     un test l'a rattrapé.
+  2. ~~Les 14 habitudes de départ sont les siennes.~~ **Corrigé le 31 août
+     2026.** `emptyState()` ne pose plus aucune habitude ; un écran
+     d'accueil (`welcome()` dans `js/ui-today.js`) propose de partir du
+     modèle (`seedFromTemplate()`) ou de zéro. Sans conséquence pour lui :
+     ses habitudes reviennent du cloud à la connexion.
   3. Lui rappeler que, propriétaire du projet Supabase, il peut voir les
      données de tous depuis le tableau de bord. La RLS protège les
      utilisateurs entre eux, pas du propriétaire.
+  4. Avant d'ouvrir à des inconnus : l'inscription autonome bute sur le
+     service d'emails de Supabase, bridé à ~2 envois/heure. Deux voies, à
+     trancher le moment venu : brancher un vrai service d'envoi (Resend),
+     ou désactiver la confirmation d'email pour l'inscription par mot de
+     passe. Penser aussi à activer la détection des mots de passe
+     compromis, que `get_advisors` signale comme désactivée.
 - **La notice.** Décidé le 28 août 2026 : pas de `NOTICE.md` séparé — ça
   n'a de sens que le jour où l'app s'ouvre à d'autres personnes (voir
   point ci-dessus). À ce moment-là, en faire un **guide intégré à

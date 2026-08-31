@@ -17,7 +17,7 @@
    C'est ce qui dit au navigateur "jette l'ancien code, prends le neuf".
    ========================================================= */
 
-var VERSION = 'v3';
+var VERSION = 'v4';
 var CACHE = 'lesysteme-code-' + VERSION;
 
 /* Le strict necessaire pour que l'app demarre hors ligne. */
@@ -29,6 +29,7 @@ var SHELL = [
   './manifest.webmanifest',
   './js/store.js',
   './js/sync.js',
+  './js/notif.js',
   './js/ui-today.js',
   './js/ui-tasks.js',
   './js/ui-progress.js',
@@ -106,5 +107,58 @@ self.addEventListener('fetch', function (e) {
       }).catch(function () { return hit; });
       return hit || net;
     })
+  );
+});
+
+
+/* =========================================================
+   LES RAPPELS
+   ---------------------------------------------------------
+   Un service worker peut etre reveille par le systeme alors que
+   l'application est fermee, voire jamais rouverte depuis des heures.
+   C'est tout l'interet : c'est le seul endroit d'ou un rappel peut
+   encore etre affiche quand plus rien d'autre ne tourne.
+
+   REGLE D'OR N°6, toujours valable : rien ici ne touche aux donnees.
+   Un rappel est un texte de passage, il n'est ni lu ni ecrit nulle part.
+   ========================================================= */
+
+self.addEventListener('push', function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = {}; }
+
+  var titre = d.title || 'Le Système';
+  var options = {
+    body: d.body || '',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    lang: 'fr',
+    /* Un tag identique remplace la notification precedente au lieu d'en
+       empiler une seconde. Deux rappels du meme type ne peuvent donc pas
+       s'accumuler si quelque chose se repete. */
+    tag: d.tag || 'rappel',
+    renotify: false,
+    data: { url: d.url || './', tab: d.tab || 'today' }
+  };
+  e.waitUntil(self.registration.showNotification(titre, options));
+});
+
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var cible = (e.notification.data && e.notification.data.tab) || 'today';
+
+  /* Si l'app est deja ouverte quelque part, on la ramene au premier plan
+     plutot que d'ouvrir un second exemplaire. */
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(function (liste) {
+        for (var i = 0; i < liste.length; i++) {
+          if ('focus' in liste[i]) {
+            liste[i].postMessage({ type: 'aller-onglet', tab: cible });
+            return liste[i].focus();
+          }
+        }
+        if (self.clients.openWindow) return self.clients.openWindow('./');
+      })
   );
 });

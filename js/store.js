@@ -152,15 +152,30 @@ window.App = App;
     });
   }
 
+  /* Un etat neuf ne contient AUCUNE habitude, volontairement.
+     Les 14 habitudes ci-dessus sont celles de Valentin : les poser
+     d'office ferait heriter n'importe quel nouvel arrivant de la vie
+     de quelqu'un d'autre. C'est desormais un choix, propose au premier
+     lancement (voir seedFromTemplate et l'ecran d'accueil de
+     js/ui-today.js). */
   function emptyState() {
     return {
       schemaVersion: SCHEMA_VERSION,
       settings: { dailyGoal: 85, updatedAt: now() },
-      habits: seedHabits(),
+      habits: [],
       entries: {},   // cle "AAAA-MM-JJ|idHabitude" -> enregistrement
       tasks: [],
       meta: { createdAt: now() }
     };
+  }
+
+  /* Adopter le modele de depart. Ne fait rien si des habitudes existent
+     deja : ce bouton ne doit jamais pouvoir doubler une liste en place. */
+  function seedFromTemplate() {
+    if (state.habits.length) return 0;
+    state.habits = seedHabits();
+    save();
+    return state.habits.length;
   }
 
   // ---------- chargement / sauvegarde ----------
@@ -565,6 +580,52 @@ window.App = App;
     try { return !!localStorage.getItem(STORAGE_KEY + '.avant-restauration'); } catch (e) { return false; }
   }
 
+  /* Repartir a zero parce qu'un AUTRE compte vient de se connecter sur
+     cet appareil.
+
+     Pourquoi c'est indispensable : localStorage n'appartient a aucun
+     compte. Sans ce menage, la premiere synchronisation du nouveau venu
+     enverrait tout l'historique du precedent dans SON coffre - il n'a
+     jamais rien envoye, donc pour lui "ce qui a change depuis le dernier
+     envoi", c'est absolument tout.
+
+     On archive avant d'effacer, comme restoreData() le fait deja : meme
+     ici, on ne detruit rien sans filet. L'archive reste dans l'appareil
+     et n'est jamais envoyee nulle part. */
+  function resetForNewUser(previousUserId) {
+    var stamp = now().replace(/[:.]/g, '-');
+    var archiveKey = STORAGE_KEY + '.archive.' + (previousUserId || 'inconnu') + '.' + stamp;
+    /* On archive l'etat EN MEMOIRE, et non ce que contient localStorage.
+       Les deux ne sont pas toujours d'accord : save() differe l'ecriture
+       de 120 ms pour ne pas ecrire a chaque frappe. Archiver le disque
+       reviendrait donc a perdre les 120 dernieres millisecondes - soit,
+       tres exactement, la coche que la personne vient de faire.
+       restoreData() prend deja cette precaution, c'est le meme reflexe. */
+    try {
+      localStorage.setItem(archiveKey, JSON.stringify(state));
+    } catch (e) {
+      console.warn('Archivage impossible avant changement de compte', e);
+    }
+    state = emptyState();
+    filledIndex = null;
+    persist();   // tout de suite, et non differe : une synchro part juste apres
+    emit();
+    return archiveKey;
+  }
+
+  /* Les archives laissees par un changement de compte. Sert a rassurer :
+     rien n'a ete perdu, tout est encore la. */
+  function listArchives() {
+    var out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(STORAGE_KEY + '.archive.') === 0) out.push(k);
+      }
+    } catch (e) { }
+    return out.sort();
+  }
+
   // ---------------------------------------------------------
   // Ce dont la synchronisation a besoin (js/sync.js)
   // ---------------------------------------------------------
@@ -671,6 +732,8 @@ window.App = App;
     // reglages + sauvegarde
     setGoal: setGoal, exportData: exportData, importData: importData,
     restoreData: restoreData, undoRestore: undoRestore, hasUndoRestore: hasUndoRestore,
+    resetForNewUser: resetForNewUser, listArchives: listArchives,
+    seedFromTemplate: seedFromTemplate,
 
     // synchronisation
     recordsSince: recordsSince, mergeHabit: mergeHabit, mergeEntry: mergeEntry,

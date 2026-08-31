@@ -16,5 +16,13 @@
 
 window.SUPABASE_CONFIG = {
   url: 'https://qttezrkjtnwigcvumokc.supabase.co',
-  anonKey: 'sb_publishable_YR_GofxwR1DZUDTz_iBcCQ_PjolNI5B'
+  anonKey: 'sb_publishable_YR_GofxwR1DZUDTz_iBcCQ_PjolNI5B',
+
+  /* La cle PUBLIQUE des rappels (dite VAPID). Comme celle du dessus,
+     elle est faite pour etre lue par tout le monde : elle sert au
+     telephone a verifier que le rappel vient bien de cette app, et ne
+     permet a elle seule d'envoyer quoi que ce soit.
+     Sa jumelle privee, elle, ne doit JAMAIS entrer dans ce fichier ni
+     dans Git : elle vit dans les secrets de la fonction serveur. */
+  vapidPublicKey: 'BPhMx93NEDiPneDNQyQcIk6M8glyzcqIIvSlJS9ruqPm6g1uoLuMDk2utOxTHfZ-9ZeYJdEDKSPFegiL2qDlBHU'
 };

@@ -228,6 +228,11 @@
   buildTabs();
   go('today');
   if (App.sync) App.sync.init();
+  /* On se contente de RELEVER l'etat des rappels ; on ne demande jamais
+     la permission ici. Une demande qui surgit a l'ouverture est refusee
+     par reflexe, et le navigateur ne la represente plus jamais. Elle
+     part donc d'un bouton, dans l'onglet Systeme. */
+  if (App.notif) App.notif.init();
 
   /* Le mode hors ligne. Ne s'active qu'en ligne (pas en double-cliquant
      le fichier) : c'est une contrainte des navigateurs, pas un choix.
@@ -237,6 +242,13 @@
       navigator.serviceWorker.register('sw.js').catch(function (e) {
         console.warn('Mode hors ligne indisponible', e);
       });
+    });
+
+    /* Quand on tape sur un rappel, le service worker ramene l'app au
+       premier plan puis dit ici quel onglet ouvrir. Un rappel de taches
+       qui atterrit sur l'onglet Taches evite une manipulation. */
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'aller-onglet' && e.data.tab) go(e.data.tab);
     });
   }
 

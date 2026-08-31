@@ -64,6 +64,8 @@ App.sync = (function () {
   // Un reperage par compte : changer de compte ne melange pas les curseurs.
   function keyCursor() { return 'lesysteme.sync.cursor.' + (user ? user.id : 'x'); }
   function keyPushed() { return 'lesysteme.sync.pushed.' + (user ? user.id : 'x'); }
+  // Le dernier compte a s'etre servi de CET appareil. Voir guardAccountChange().
+  var KEY_LAST_USER = 'lesysteme.lastUserId';
   function get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
   function set(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
 
@@ -165,10 +167,36 @@ App.sync = (function () {
     });
   }
 
+  /* Deux personnes, un seul appareil.
+
+     localStorage n'appartient a aucun compte : les donnees qui s'y
+     trouvent sont simplement celles de la derniere personne qui s'est
+     servie de cet appareil. Si quelqu'un d'autre se connecte, il faut
+     faire le menage AVANT la premiere synchronisation, sans quoi push()
+     lui enverrait tout l'historique du precedent - n'ayant jamais rien
+     envoye, "ce qui a change depuis son dernier envoi" vaut, pour lui,
+     la totalite de ce qui traine sur l'appareil.
+
+     Le cas courant, et de loin : personne n'a jamais utilise ce compte
+     ici, il n'y a donc rien a comparer. On ne touche a rien, les donnees
+     locales sont adoptees comme avant. */
+  function guardAccountChange(newId) {
+    var last = get(KEY_LAST_USER, '');
+    if (last && last !== newId) {
+      var where = S.resetForNewUser(last);
+      console.warn('Changement de compte sur cet appareil. Donnees precedentes archivees dans ' + where);
+      if (App.ui && App.ui.toast) {
+        App.ui.toast('Nouveau compte : cet appareil repart à zéro. Les données précédentes sont archivées.');
+      }
+    }
+    set(KEY_LAST_USER, newId);
+  }
+
   function adoptSession(session) {
     var was = user ? user.id : null;
     user = session ? session.user : null;
     if (user && user.id !== was) {
+      guardAccountChange(user.id);
       setStatus('ready');
       syncNow();
     } else if (!user) {
@@ -362,6 +390,10 @@ App.sync = (function () {
 
   return {
     init: init, onChange: onChange, info: info,
+    /* Le client et le compte, pour js/notif.js : inutile d'ouvrir une
+       seconde connexion Supabase, celle-ci est deja authentifiee. */
+    db: function () { return client; },
+    account: function () { return user; },
     sendMagicLink: sendMagicLink, signInWithPassword: signInWithPassword,
     setPassword: setPassword, signOut: signOut,
     syncNow: syncNow, resendEverything: resendEverything,

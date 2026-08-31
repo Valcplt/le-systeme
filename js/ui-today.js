@@ -193,11 +193,72 @@ App.views.today = (function () {
     ]);
   }
 
+  /* ---------- le tout premier lancement ----------
+     Un etat neuf n'a plus aucune habitude (voir emptyState dans
+     js/store.js) : sans cet ecran, la personne qui installe l'app
+     tomberait sur une page vide et croirait a une panne.
+
+     Deux chemins seulement, et le second compte autant que le premier :
+     tout le monde n'a pas envie de vivre selon les habitudes de
+     quelqu'un d'autre. */
+  function welcome() {
+    var el = U().el;
+    var i = App.sync ? App.sync.info() : { status: 'off' };
+
+    // Connecte mais pas encore synchronise : ses habitudes sont dans le
+    // cloud et arrivent. Ne surtout pas lui proposer d'en creer d'autres.
+    if (i.email && (i.status === 'syncing' || i.status === 'ready')) {
+      return el('div', { class: 'empty-note', style: 'margin-top:30px' }, [
+        el('div', { text: 'Récupération de tes habitudes…' }),
+        el('div', { class: 'hint', text: 'Elles reviennent du cloud, ça prend quelques secondes.' })
+      ]);
+    }
+
+    return el('div', { class: 'card', style: 'padding:18px;margin-top:18px' }, [
+      el('div', { style: 'font-size:17px;font-weight:600;margin-bottom:6px', text: 'Bienvenue dans Le Système' }),
+      el('div', {
+        class: 'hint', style: 'margin-bottom:18px',
+        text: 'Tu coches tes habitudes chaque jour, l’app calcule ton score et te montre ta progression. Pour commencer, il faut une liste d’habitudes.'
+      }),
+      el('div', { style: 'display:flex;flex-direction:column;gap:10px' }, [
+        el('button', {
+          class: 'btn btn-gold btn-block', text: 'Partir d’un modèle',
+          onclick: function () {
+            var n = S.seedFromTemplate();
+            U().toast(n + ' habitudes ajoutées. Modifie-les comme tu veux dans l’onglet Système.');
+          }
+        }),
+        el('div', {
+          class: 'hint', style: 'margin:0 0 6px',
+          text: '14 habitudes réparties entre matin, journée et soir. Tout est modifiable, renommable et supprimable ensuite.'
+        }),
+        el('button', {
+          class: 'btn btn-block', text: 'Partir de zéro',
+          onclick: function () { App.go('system'); }
+        }),
+        el('div', {
+          class: 'hint', style: 'margin:0',
+          text: 'Tu construis ta propre liste, une habitude à la fois, depuis l’onglet Système.'
+        })
+      ]),
+      el('div', {
+        class: 'hint', style: 'margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft)',
+        text: 'Tu as déjà un compte ? Connecte-toi dans l’onglet Système : tes habitudes et ton historique reviendront tout seuls.'
+      })
+    ]);
+  }
+
   // ---------- rendu complet ----------
   function render(root) {
     var el = U().el;
     U().clear(root);
     var d = date();
+
+    // Aucune habitude n'a jamais existe sur cet appareil : premier lancement.
+    if (!S.state.habits.length) {
+      root.appendChild(welcome());
+      return;
+    }
 
     root.appendChild(dayNav());
     var tasks = dayTasksCard();

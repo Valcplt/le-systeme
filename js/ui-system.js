@@ -538,6 +538,91 @@ App.views.system = (function () {
     }, { noFocus: true });
   }
 
+  /* ---------- les rappels ----------
+     Un seul principe tient toute cette carte : ne jamais montrer un
+     bouton qui ne peut pas marcher. Chaque situation a son message et
+     son geste, et la personne n'a jamais a deviner pourquoi rien ne se
+     passe. */
+  function notifCard() {
+    var el = U().el;
+    var n = App.notif ? App.notif.info() : { status: 'unsupported', configured: false };
+    var s = App.sync ? App.sync.info() : { status: 'off', email: null };
+
+    function carte(titre, texte, boutons) {
+      return el('div', { class: 'card', style: 'padding:14px' }, [
+        el('div', { style: 'font-size:15px;font-weight:600', text: titre }),
+        el('div', { class: 'hint', style: 'margin-bottom:' + (boutons ? '12px' : '0'), text: texte }),
+        boutons || null
+      ]);
+    }
+
+    // --- l'appareil ne sait pas faire ---
+    if (n.status === 'ios-home-screen') {
+      return carte('Rappels indisponibles dans cet onglet',
+        'Sur iPhone, les rappels n’existent que si l’app a été ajoutée à l’écran d’accueil. Touche le bouton Partager de Safari, puis « Sur l’écran d’accueil », et rouvre l’app depuis son icône.');
+    }
+    if (n.status === 'unsupported' || !n.configured) {
+      return carte('Rappels indisponibles',
+        'Ce navigateur ne sait pas afficher de rappels. L’application fonctionne normalement pour tout le reste.');
+    }
+
+    // --- il faut un compte : c'est lui qui recoit ---
+    if (!s.email) {
+      return carte('Rappels',
+        'Connecte-toi d’abord, juste au-dessus : les rappels sont rattachés à ton compte, pas à cet appareil.');
+    }
+
+    // --- refuse au niveau du navigateur : on ne peut plus rien demander ---
+    if (n.status === 'denied') {
+      return carte('Rappels bloqués par le navigateur',
+        'Les notifications ont été refusées pour ce site. Le navigateur ne redemandera plus : il faut les réautoriser à la main, via le cadenas dans la barre d’adresse, puis recharger la page.');
+    }
+
+    // --- actif ---
+    if (n.status === 'on') {
+      return carte('Rappels activés', 'Sur cet appareil : ' + App.notif.deviceLabel() + '.',
+        el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
+          el('button', {
+            class: 'btn btn-sm', text: 'M’envoyer un test',
+            onclick: function () {
+              U().toast('Envoi…');
+              App.notif.sendTest().then(function (r) {
+                U().toast((r && r.sent ? r.sent : 0) + ' notification(s) envoyée(s). Ferme l’app pour la voir arriver.');
+              }).catch(function (e) {
+                console.error(e);
+                U().toast('Envoi impossible : ' + (e.message || e));
+              });
+            }
+          }),
+          el('button', {
+            class: 'btn btn-sm btn-danger', text: 'Désactiver ici',
+            onclick: function () {
+              U().confirmBox('Ne plus recevoir de rappels sur cet appareil ?',
+                'Tes autres appareils continueront d’en recevoir. Rien n’est perdu : tu peux réactiver quand tu veux.',
+                'Désactiver', function () {
+                  App.notif.disable().then(function () { U().toast('Rappels désactivés ici'); });
+                });
+            }
+          })
+        ]));
+    }
+
+    // --- pret a etre active ---
+    return carte('Rappels',
+      'Recevoir une notification quand ta journée n’est pas cochée, ou qu’il te reste des tâches. Le téléphone peut être fermé.',
+      el('button', {
+        class: 'btn btn-gold btn-block', text: 'Activer sur cet appareil',
+        onclick: function () {
+          App.notif.enable().then(function () {
+            U().toast('Rappels activés sur cet appareil');
+          }).catch(function (e) {
+            console.error(e);
+            U().toast(e.message || 'Activation impossible');
+          });
+        }
+      }));
+  }
+
   function backupCard() {
     var el = U().el;
 
@@ -618,6 +703,9 @@ App.views.system = (function () {
 
     root.appendChild(el('div', { class: 'section-label' }, [el('span', { text: 'synchronisation' })]));
     root.appendChild(syncCard());
+
+    root.appendChild(el('div', { class: 'section-label' }, [el('span', { text: 'rappels' })]));
+    root.appendChild(notifCard());
 
     root.appendChild(el('div', { class: 'section-label' }, [el('span', { text: 'mes données' })]));
     root.appendChild(backupCard());
