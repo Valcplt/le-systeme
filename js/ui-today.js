@@ -254,11 +254,21 @@ App.views.today = (function () {
     U().clear(root);
     var d = date();
 
+    /* Le guide de premier lancement occupe l'ecran entier tant qu'il
+       n'est pas termine ou passe (voir js/ui-guide.js). */
+    if (App.guide && App.guide.actif()) {
+      root.appendChild(App.guide.vue());
+      return;
+    }
+
     // Aucune habitude n'a jamais existe sur cet appareil : premier lancement.
     if (!S.state.habits.length) {
       root.appendChild(welcome());
       return;
     }
+
+    var tip = App.guide ? App.guide.tabCard('today') : null;
+    if (tip) root.appendChild(tip);
 
     root.appendChild(dayNav());
     var tasks = dayTasksCard();

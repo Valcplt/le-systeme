@@ -224,6 +224,9 @@ App.views.progress = (function () {
     U().clear(root);
     var b = rangeBounds(), from = b[0], to = b[1];
 
+    var tip = App.guide ? App.guide.tabCard('progress') : null;
+    if (tip) root.appendChild(tip);
+
     root.appendChild(statsBlock());
     root.appendChild(rangeBar());
 

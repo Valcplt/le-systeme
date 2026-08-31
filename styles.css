@@ -452,3 +452,88 @@ ul{list-style:none;margin:0;padding:0}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
+
+/* =========================================================
+   LE GUIDE (js/ui-guide.js)
+   L'accueil du premier lancement, les cartes de premiere visite,
+   et la page "Comment ca marche".
+   ========================================================= */
+
+/* ---------- l'entete des cinq ecrans ---------- */
+.guide-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.guide-steps{flex:1;display:flex;gap:6px;justify-content:center}
+.guide-steps .gs{
+  width:22px;height:3px;border-radius:99px;background:var(--line);
+  transition:background .25s ease;
+}
+.guide-steps .gs.past{background:var(--gold-dim)}
+.guide-steps .gs.on{background:var(--gold)}
+.guide-skip{
+  font-size:12.5px;color:var(--txt-faint);padding:8px 4px;
+  min-height:var(--tap);display:flex;align-items:center;
+}
+.guide-skip:hover{color:var(--txt-dim)}
+
+/* ---------- la carte d'un ecran ---------- */
+.guide-card{padding:20px 18px 18px}
+.guide-num{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:10px;
+}
+.guide-t{margin:0 0 8px;font-size:21px;font-weight:700;line-height:1.25;letter-spacing:-.01em}
+.guide-p{margin:0 0 18px;font-size:14px;line-height:1.55;color:var(--txt-dim)}
+
+/* ---------- les points expliques, en liste ---------- */
+.guide-lines{display:flex;flex-direction:column;gap:12px}
+.guide-line{
+  display:flex;flex-direction:column;gap:2px;
+  padding-left:13px;border-left:2px solid var(--gold-dim);
+}
+.guide-line b{font-size:14px;font-weight:600;color:var(--txt)}
+.guide-line span{font-size:13px;line-height:1.5;color:var(--txt-dim)}
+
+/* ---------- la liste des habitudes construites (ecran 2) ---------- */
+.guide-liste{display:flex;flex-direction:column;gap:14px}
+.guide-grp-t{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--txt-faint);margin-bottom:6px;
+}
+.guide-h{
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+  padding:7px 0;border-bottom:1px solid var(--line-soft);
+}
+.guide-h:last-child{border-bottom:0}
+.guide-h .nm{font-size:14px;font-weight:600}
+.guide-h .sub{font-size:11.5px;color:var(--txt-faint)}
+.guide-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.guide-add .btn{flex:1;min-width:92px}
+
+/* ---------- la carte de premiere visite d'un onglet ---------- */
+.tipcard{padding:16px 15px;margin-bottom:16px;border-color:var(--gold-dim)}
+.tip-t{font-size:15.5px;font-weight:600;margin-bottom:12px}
+
+/* ---------- la page "Comment ca marche" ---------- */
+/* <details> natif : il se replie sans une ligne de JavaScript, donc sans
+   rien qui puisse entrer en conflit avec le rendu complet de l'app. */
+.modal details.aide{border-bottom:1px solid var(--line-soft)}
+.modal details.aide summary{
+  cursor:pointer;list-style:none;padding:13px 0;
+  font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:9px;
+}
+.modal details.aide summary::-webkit-details-marker{display:none}
+.modal details.aide summary::before{
+  content:"›";color:var(--gold);font-size:17px;line-height:1;
+  transition:transform .18s ease;display:inline-block;
+}
+.modal details.aide[open] summary::before{transform:rotate(90deg)}
+.modal details.aide p{
+  margin:0 0 11px;padding-left:18px;
+  font-size:13px;line-height:1.6;color:var(--txt-dim);
+}
+.modal details.aide p:last-child{margin-bottom:14px}
+
+@media (min-width:768px){
+  .guide{max-width:600px;margin:0 auto}
+  .guide-card{padding:26px 24px 22px}
+  .guide-t{font-size:24px}
+}

@@ -224,6 +224,9 @@
   // Demarrage
   // ---------------------------------------------------------
   S.load();
+  /* Le guide decide ICI, une fois les donnees chargees, s'il doit
+     s'ouvrir. Avant S.load() il ne saurait pas si l'appareil est vierge. */
+  if (App.guide) App.guide.init();
   S.onChange(render);
   buildTabs();
   go('today');

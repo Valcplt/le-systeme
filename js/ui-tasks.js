@@ -154,6 +154,9 @@ App.views.tasks = (function () {
     var el = U().el;
     U().clear(root);
 
+    var tip = App.guide ? App.guide.tabCard('tasks') : null;
+    if (tip) root.appendChild(tip);
+
     // --- barre d'ajout ---
     var input = el('input', {
       class: 'field', placeholder: 'Une idée, une tâche… puis Entrée',

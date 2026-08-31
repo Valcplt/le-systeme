@@ -238,7 +238,11 @@ App.views.system = (function () {
   // Synchronisation entre appareils
   // ---------------------------------------------------------
   var mailSentTo = null;      // le temps d'un affichage, apres l'envoi du lien
-  var signinMode = 'password';// 'password' | 'magic'
+  var signinMode = 'password';// 'password' | 'magic' | 'creer'
+  /* L'erreur de connexion vit ICI et non dans le noeud du formulaire :
+     App.render() reconstruit la carte entiere, et emportait le message
+     avec elle. Un echec de connexion restait alors muet. */
+  var msgAuth = '';
 
   /* La connexion par mot de passe est proposee EN PREMIER, et le lien
      magique relegue au second plan. Raison : le service d'emails de
@@ -256,17 +260,15 @@ App.views.system = (function () {
       placeholder: 'ton mot de passe', 'aria-label': 'Mot de passe',
       onkeydown: function (ev) { if (ev.key === 'Enter') go(); }
     });
-    var msg = el('div', { class: 'hint', style: 'color:var(--red)' });
-
     function go() {
       var e = mail.value.trim(), p = pass.value;
-      if (!e || e.indexOf('@') === -1) { msg.textContent = 'Il faut une adresse email.'; return; }
-      if (!p) { msg.textContent = 'Il faut ton mot de passe.'; return; }
-      msg.textContent = '';
+      if (!e || e.indexOf('@') === -1) { msgAuth = 'Il faut une adresse email.'; App.render(); return; }
+      if (!p) { msgAuth = 'Il faut ton mot de passe.'; App.render(); return; }
+      msgAuth = '';
       U().toast('Connexion…');
       App.sync.signInWithPassword(e, p).catch(function (err) {
         console.error(err);
-        msg.textContent = App.sync.friendlyError(err);
+        msgAuth = App.sync.friendlyError(err);
         App.render();
       });
     }
@@ -281,17 +283,74 @@ App.views.system = (function () {
         mail, pass,
         el('button', { class: 'btn btn-gold btn-block', text: 'Se connecter', onclick: go })
       ]),
-      msg,
+      msgAuth ? el('div', { class: 'hint', style: 'color:var(--red)', text: msgAuth }) : null,
       el('div', { style: 'margin-top:14px;display:flex;flex-direction:column;gap:6px' }, [
         el('button', {
+          class: 'btn btn-sm', text: 'Créer un compte',
+          onclick: function () { signinMode = 'creer'; msgAuth = ''; App.render(); }
+        }),
+        el('div', {
+          class: 'hint', style: 'margin:0 0 8px',
+          text: 'Première fois ici ? Une adresse, un mot de passe, et c’est immédiat.'
+        }),
+        el('button', {
           class: 'btn btn-sm', text: 'Je n’ai pas encore de mot de passe',
-          onclick: function () { signinMode = 'magic'; App.render(); }
+          onclick: function () { signinMode = 'magic'; msgAuth = ''; App.render(); }
         }),
         el('div', {
           class: 'hint', style: 'margin:0',
           text: 'Tu recevras alors un lien par email. Une fois connecté, tu pourras définir ton mot de passe ici même.'
         })
       ])
+    ]);
+  }
+
+  /* Creer un compte, pour quelqu'un qui n'a encore rien. Sans elle, la
+     seule porte d'entree serait le lien magique, donc le service d'emails
+     de Supabase et sa limite de quelques envois par heure. */
+  function signUpCard() {
+    var el = U().el;
+
+    var mail = el('input', {
+      class: 'field', type: 'email', inputmode: 'email', autocomplete: 'email',
+      placeholder: 'ton@email.fr', 'aria-label': 'Adresse email'
+    });
+    var pass = el('input', {
+      class: 'field', type: 'password', autocomplete: 'new-password',
+      placeholder: '8 caractères minimum', 'aria-label': 'Mot de passe',
+      onkeydown: function (ev) { if (ev.key === 'Enter') go(); }
+    });
+    function go() {
+      var e = mail.value.trim(), p = pass.value;
+      if (!e || e.indexOf('@') === -1) { msgAuth = 'Il faut une adresse email.'; App.render(); return; }
+      if (p.length < 8) { msgAuth = 'Il faut au moins 8 caractères.'; App.render(); return; }
+      msgAuth = '';
+      U().toast('Création du compte…');
+      App.sync.signUp(e, p).then(function () {
+        U().toast('Compte créé');
+      }).catch(function (err) {
+        console.error(err);
+        msgAuth = App.sync.friendlyError(err);
+        App.render();
+      });
+    }
+
+    return el('div', { class: 'card', style: 'padding:14px' }, [
+      el('div', { style: 'font-size:15px;font-weight:600', text: 'Créer mon compte' }),
+      el('div', {
+        class: 'hint', style: 'margin-bottom:12px',
+        text: 'Une adresse email et un mot de passe. C’est immédiat, il n’y a aucun email à aller chercher. Tes données seront rattachées à ce compte, et à lui seul.'
+      }),
+      el('div', { style: 'display:flex;flex-direction:column;gap:8px' }, [
+        mail, pass,
+        el('button', { class: 'btn btn-gold btn-block', text: 'Créer mon compte', onclick: go })
+      ]),
+      msgAuth ? el('div', { class: 'hint', style: 'color:var(--red)', text: msgAuth }) : null,
+      el('button', {
+        class: 'btn btn-sm', style: 'margin-top:14px',
+        text: 'J’ai déjà un compte',
+        onclick: function () { signinMode = 'password'; msgAuth = ''; App.render(); }
+      })
     ]);
   }
 
@@ -366,6 +425,7 @@ App.views.system = (function () {
 
     // --- configure mais pas connecte ---
     if (i.status === 'signedout' || i.status === 'off') {
+      if (signinMode === 'creer') return signUpCard();
       if (signinMode === 'password') return passwordSignIn();
       if (mailSentTo) {
         return el('div', { class: 'card', style: 'padding:14px' }, [
@@ -381,7 +441,7 @@ App.views.system = (function () {
             }),
             el('button', {
               class: 'btn btn-sm', text: 'Revenir au mot de passe',
-              onclick: function () { mailSentTo = null; signinMode = 'password'; App.render(); }
+              onclick: function () { mailSentTo = null; signinMode = 'password'; msgAuth = ''; App.render(); }
             })
           ])
         ]);
@@ -417,7 +477,7 @@ App.views.system = (function () {
         el('button', {
           class: 'btn btn-sm', style: 'margin-top:12px',
           text: 'Revenir au mot de passe',
-          onclick: function () { signinMode = 'password'; App.render(); }
+          onclick: function () { signinMode = 'password'; msgAuth = ''; App.render(); }
         })
       ]);
     }
@@ -741,6 +801,9 @@ App.views.system = (function () {
     var el = U().el;
     U().clear(root);
 
+    var tip = App.guide ? App.guide.tabCard('system') : null;
+    if (tip) root.appendChild(tip);
+
     root.appendChild(el('div', { class: 'section-label' }, [el('span', { text: 'objectif quotidien' })]));
     root.appendChild(goalCard());
 
@@ -767,6 +830,11 @@ App.views.system = (function () {
     root.appendChild(el('div', { class: 'section-label' }, [el('span', { text: 'mes données' })]));
     root.appendChild(backupCard());
 
+    if (App.guide) {
+      root.appendChild(el('div', { class: 'section-label' }, [el('span', { text: 'aide' })]));
+      root.appendChild(App.guide.aideCard());
+    }
+
     root.appendChild(el('div', {
       class: 'hint',
       style: 'text-align:center;margin:22px 0 8px',
@@ -774,5 +842,5 @@ App.views.system = (function () {
     }));
   }
 
-  return { render: render };
+  return { render: render, editor: editor };
 })();

@@ -232,6 +232,33 @@ App.sync = (function () {
     return true;
   }
 
+  /* Creer un compte. C'est la seule porte d'entree pour quelqu'un qui
+     n'a encore rien : signInWithPassword() refuse un compte inexistant,
+     et le lien magique depend du service d'emails de Supabase, bride a
+     quelques envois par heure.
+     La confirmation d'email est desactivee cote Supabase (Authentication
+     -> Providers -> Email -> Confirm email), donc l'inscription rend une
+     session tout de suite, sans aller chercher un email. Ce reglage ne
+     change RIEN a l'etancheite entre comptes : elle tient au user_id
+     porte par chaque ligne et a la RLS (migration 001), doublee des
+     GRANT (migration 002). Il change une seule chose : l'adresse n'est
+     plus prouvee. */
+  async function signUp(email, password) {
+    if (!client) throw new Error('Synchronisation non configurée');
+    var res = await client.auth.signUp({
+      email: String(email).trim(),
+      password: password
+    });
+    if (res.error) throw res.error;
+    /* Si la confirmation d'email venait a etre reactivee, signUp rend un
+       utilisateur mais AUCUNE session. Le dire, plutot que de laisser
+       croire a une reussite muette. */
+    if (!res.data || !res.data.session) {
+      throw new Error('Compte créé. Ouvre le lien de confirmation reçu par email, puis reviens te connecter.');
+    }
+    return true;
+  }
+
   /* Poser (ou changer) le mot de passe du compte deja connecte.
      Le mot de passe part directement chez Supabase, qui n'en garde qu'une
      empreinte : il n'est stocke nulle part dans l'app. */
@@ -250,6 +277,21 @@ App.sync = (function () {
     var low = m.toLowerCase();
     if (low.indexOf('invalid login credentials') !== -1) {
       return 'Email ou mot de passe incorrect.';
+    }
+    // --- cas propres a l'inscription ---
+    if (low.indexOf('already registered') !== -1 || low.indexOf('already exists') !== -1) {
+      return 'Cette adresse a déjà un compte. Connecte-toi avec ton mot de passe.';
+    }
+    if (low.indexOf('unable to validate email') !== -1 || low.indexOf('invalid email') !== -1) {
+      return 'Cette adresse email n’a pas l’air valide.';
+    }
+    if (low.indexOf('signups not allowed') !== -1 || low.indexOf('signup is disabled') !== -1) {
+      return 'Les inscriptions sont fermées pour le moment.';
+    }
+    /* Detection des mots de passe compromis, activee cote Supabase :
+       le mot de passe choisi figure dans une fuite publique connue. */
+    if (low.indexOf('pwned') !== -1 || low.indexOf('compromised') !== -1) {
+      return 'Ce mot de passe apparaît dans une fuite de données connue. Choisis-en un autre.';
     }
     if (low.indexOf('email rate limit') !== -1 || low.indexOf('rate limit') !== -1) {
       return 'Trop d’emails envoyés d’un coup. Attends une heure — ou connecte-toi avec ton mot de passe, qui n’envoie rien.';
@@ -410,6 +452,7 @@ App.sync = (function () {
     db: function () { return client; },
     account: function () { return user; },
     sendMagicLink: sendMagicLink, signInWithPassword: signInWithPassword,
+    signUp: signUp,
     setPassword: setPassword, signOut: signOut,
     syncNow: syncNow, resendEverything: resendEverything,
     configured: configured, friendlyError: friendlyError

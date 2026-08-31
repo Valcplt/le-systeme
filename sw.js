@@ -17,7 +17,7 @@
    C'est ce qui dit au navigateur "jette l'ancien code, prends le neuf".
    ========================================================= */
 
-var VERSION = 'v5';
+var VERSION = 'v6';
 var CACHE = 'lesysteme-code-' + VERSION;
 
 /* Le strict necessaire pour que l'app demarre hors ligne. */
@@ -34,6 +34,7 @@ var SHELL = [
   './js/ui-tasks.js',
   './js/ui-progress.js',
   './js/ui-system.js',
+  './js/ui-guide.js',
   './js/app.js',
   './icons/icon.svg',
   './icons/icon-192.png',

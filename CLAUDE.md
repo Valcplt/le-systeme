@@ -107,6 +107,7 @@ la synchro cloud viendra par-dessus, en arrière-plan.
 | `js/ui-tasks.js` | Onglet Tâches (glisser-déposer souris + doigt via Pointer Events) |
 | `js/ui-progress.js` | Onglet Progression (graphique SVG écrit à la main, calendrier, régularité) |
 | `js/ui-system.js` | Onglet Système (objectif, éditeur d'habitude, sauvegardes) |
+| `js/ui-guide.js` | Le guide : accueil du premier lancement, cartes de première visite, page d'aide (voir §8 ter) |
 | `js/sync.js` | Connexion par lien magique + synchro Supabase. En `async/await`, comme `notif.js` |
 | `js/notif.js` | Les rappels : permission, abonnement, désabonnement (voir §8 bis) |
 | `config.js` | URL + clé publique Supabase. Vides = mode local pur, l'app marche quand même |
@@ -196,7 +197,12 @@ ancien artefact.
 
 ## 7. Comment tester
 
-Pas de tests automatisés (pas de Node). On teste à la main, dans cet ordre :
+Node est installé : un test jetable, hors dépôt, qui charge `store.js` (voire
+toute l'app) dans un faux navigateur coûte quelques minutes et attrape ce que la
+relecture laisse passer. Deux ont déjà servi, le 31 août. Ce n'est pas une
+excuse pour sauter l'essai à la main, qui reste la vérification qui compte.
+
+On teste à la main, dans cet ordre :
 
 1. `preview_start` avec le nom `le-systeme`, puis `http://localhost:8123/`.
 2. **Aujourd'hui** : cocher / décocher une habitude ; saisir une durée et
@@ -220,11 +226,26 @@ Pas de tests automatisés (pas de Node). On teste à la main, dans cet ordre :
 Projet Supabase `qttezrkjtnwigcvumokc`. Quatre tables qui reprennent le
 modèle local à l'identique : `settings`, `habits`, `entries`, `tasks`.
 
-**Deux façons de se connecter, et l'ordre compte :**
+**Trois portes, et l'ordre compte :**
 1. **Email + mot de passe** — proposé en premier, c'est le chemin normal.
    N'envoie **aucun email**, donc ne peut jamais laisser dehors.
-2. **Lien magique** — accessible en un clic, pour un appareil qui n'a pas
+2. **Créer un compte** (`signUp()`, ajouté le 31 août 2026) — la seule
+   porte pour quelqu'un qui n'a encore rien : `signInWithPassword()` refuse
+   un compte inexistant. Immédiate, sans email, **à condition** que
+   « Confirm email » reste désactivé dans Supabase → Authentication →
+   Providers → Email. Si ce réglage était réactivé, `signUp()` rendrait un
+   utilisateur mais aucune session : le code le détecte et le dit, plutôt
+   que de laisser croire à une réussite muette.
+3. **Lien magique** — accessible en un clic, pour un appareil qui n'a pas
    encore de mot de passe.
+
+**Ce que la confirmation d'email ne fait PAS.** Elle ne protège en rien
+l'étanchéité entre comptes, question posée par Valentin le 31 août et
+vérifiée. L'étanchéité tient au `user_id` porté par chaque ligne et à la RLS
+(migration 001), doublée des `GRANT` (migration 002). Couper la confirmation
+ne change qu'une chose : l'adresse n'est plus prouvée. À redire s'il repose
+la question, et à ne pas confondre avec le point 3 du §11 — propriétaire du
+projet, il voit les données de tous depuis le tableau de bord.
 
 Pourquoi : le SMTP par défaut de Supabase est bridé à ~2 emails/heure
 (c'est un service de démonstration). Il a été bloqué dessus en connectant
@@ -268,6 +289,13 @@ Les réparations ponctuelles (non rejouables) vont dans
 dans le SQL Editor. Lancer `get_advisors` après chaque changement de
 structure : c'est lui qui a signalé le `search_path` non figé de
 `touch_synced_at` (corrigé).
+
+**Deux avertissements de `get_advisors` resteront allumés, et c'est normal.**
+Ne pas les représenter comme des corrections à faire :
+- *Leaked Password Protection Disabled* — **réservée au plan Pro**.
+  `get_advisors` ne mentionne pas cette condition. Constaté le 31 août 2026.
+- *Extension in Public (`pg_net`)* — arrivée avec les rappels (§8 bis).
+  La déplacer casserait les appels `net.http_post` de la migration 006.
 
 Un schéma `sauvegarde` contient des copies datées des tables, prises
 avant les réparations. PostgREST n'expose que `public` : ces copies ne
@@ -398,6 +426,52 @@ la console : `navigator.serviceWorker.ready.then(r => r.showNotification('test')
 Si cette bulle n'apparaît pas, le problème est dans le système, pas dans
 l'app.
 
+## 8 ter. Le guide de prise en main (étape 5, faite)
+
+Tout vit dans `js/ui-guide.js`, chargé après `ui-system.js` et avant
+`app.js`. Trois couches, indépendantes :
+
+1. **L'accueil du premier lancement**, cinq écrans rendus dans
+   `#view-today` : le principe, construire ses habitudes, l'objectif
+   quotidien, le compte, les rappels. `App.guide.init()` est appelé depuis
+   `app.js` **après `S.load()`** — avant, il ne saurait pas si l'appareil
+   est vierge.
+2. **La carte de première visite** d'un onglet, `App.guide.tabCard(id)`,
+   appelée en tête du `render()` de chacune des quatre vues.
+3. **La page « Comment ça marche »** et le bouton « Revoir le guide », dans
+   la section « aide » de l'onglet Système.
+
+**Où vit l'avancement :** clé `localStorage` `lesysteme.guide`,
+volontairement **pas** dans `settings`. Y ajouter un champ imposerait un
+`SCHEMA_VERSION` 3 et une migration pour quelque chose de purement
+cosmétique, avec le risque qu'un appareil écrase l'autre. Un guide est
+propre à l'écran sur lequel on apprend. Même logique que « deux portées,
+deux endroits » (§8 bis).
+
+**Le guide ne s'ouvre que sur une installation réellement vierge** : aucune
+habitude, aucun historique (`isPristine()`), et aucun compte n'ayant déjà
+servi sur cet appareil (`lesysteme.lastUserId`). Sinon `init()` marque tout
+comme vu, en silence. Une mise à jour ne doit jamais couvrir de didacticiel
+l'app de quelqu'un qui s'en sert déjà.
+
+**Pourquoi une carte en haut de page et pas un halo posé sur les éléments.**
+`App.render()` reconstruit l'onglet entier à chaque changement de données.
+Un halo ancré à un élément devrait être recalculé en permanence et se
+décalerait au premier re-rendu.
+
+**Contrainte à ne pas perdre de vue :** la page d'aide **recopie en français
+des règles qui vivent ailleurs** — le score (§6) et les conditions des
+rappels (§8 bis). C'est le deuxième endroit du projet à porter une règle
+métier, après la migration 007. Si une de ces règles change, le texte de
+`AIDE` dans `js/ui-guide.js` change avec.
+
+**Un défaut corrigé au passage.** Dans `passwordSignIn()`, le message
+d'erreur était posé sur un nœud du DOM que le `App.render()` de la ligne
+suivante remplaçait aussitôt : une connexion qui échouait ne disait rien.
+Le message vit désormais au niveau du module (`msgAuth`), comme
+`signinMode`. *Règle générale : dans cette app, un état qui doit survivre à
+un rendu ne peut pas vivre dans le DOM.*
+
 ## 9. Publier une mise à jour (étape 3, faite)
 
 **En ligne à :** https://valcplt.github.io/le-systeme/
@@ -434,6 +508,43 @@ lecture et écriture anonymes refusées sur les 4 tables.
 
 ## 10. Journal
 
+- **31 août 2026 (2ᵉ session) — le guide de prise en main.** L'app savait
+  tout faire sauf s'expliquer : quelqu'un qui l'installait tombait sur deux
+  boutons sans savoir ce qu'était le score, le `+1j`, ni pourquoi il lui
+  faudrait un compte. Trois couches livrées dans `js/ui-guide.js`, détail
+  en §8 ter. La forme avait été tranchée dès le 28 août — un guide intégré,
+  pas un `NOTICE.md` que personne n'ouvre — et c'est ce qui a été fait.
+  *Un blocage levé au passage :* l'app ne savait pas **créer** un compte.
+  `signInWithPassword()` refuse un compte inexistant, et le lien magique
+  dépend du service d'emails bridé à ~2 envois/heure. `signUp()` ajouté,
+  confirmation d'email coupée côté Supabase. C'était le point 4 du §11.
+  *Question posée par Valentin, et elle était la bonne :* couper cette
+  confirmation ne casse-t-il pas l'étanchéité entre comptes ? Non — voir §8.
+  *Un défaut trouvé en écrivant, pas en testant :* le message d'erreur de
+  la connexion était effacé par le re-rendu qui suivait, donc jamais lu.
+  Corrigé dans le même mouvement, puisque le guide envoie désormais du monde
+  sur ce formulaire. Détail en §8 ter.
+  *Vérification :* deux tests jetables en Node, hors dépôt. Le premier sur
+  `store.js` (la règle du score inchangée, 6/10 = 60 % un jeudi ; le modèle
+  qui refuse de doubler une liste ; les cinq cas d'ouverture du guide). Le
+  second fait **démarrer l'app entière** dans un faux DOM et déroule les
+  cinq écrans, les cartes d'onglet et la page d'aide. 42 vérifications, zéro
+  échec. Service worker en `v6`.
+  *Réglage fait par Valentin* : Authentication → Sign In / Providers →
+  Email → « Confirm email » **off**. **Vérifié pour de vrai** en appelant
+  `/auth/v1/signup` : l'inscription rend une session immédiate.
+  *Étanchéité entre comptes, mesurée et non affirmée.* Un compte de test créé
+  pour l'occasion, muni d'un vrai jeton, voit **0 ligne sur les 4 tables** —
+  y compris celles de Valentin, pourtant présentes dans les mêmes tables
+  (14 habitudes actives, 14 supprimées en douceur, 47 saisies, 13 tâches).
+  Sans compte, PostgREST refuse même d'ouvrir les tables (`42501`). C'est la
+  réponse à sa question du 31 août, cette fois par la mesure.
+  *Une erreur de ma part, corrigée :* la « détection des mots de passe
+  compromis » que `get_advisors` réclame est **réservée au plan Pro**.
+  `get_advisors` ne le dit pas. Elle restera donc signalée en WARN sur le
+  plan gratuit, et ce n'est pas une négligence : c'est un mur tarifaire.
+  Substituts gratuits sur la même page : « Minimum password length » (6 par
+  défaut, l'app en exige 8 côté navigateur) et « Password requirements ».
 - **31 août 2026 — les rappels, et l'app rendue partageable.**
   *Rappels, les trois paliers.* Chaîne d'envoi vérifiée sur son PC **puis
   sur son Android** : migrations 003 à 006, fonction `send-reminders`,
@@ -540,14 +651,18 @@ lecture et écriture anonymes refusées sur les 4 tables.
   3. Lui rappeler que, propriétaire du projet Supabase, il peut voir les
      données de tous depuis le tableau de bord. La RLS protège les
      utilisateurs entre eux, pas du propriétaire.
-  4. Avant d'ouvrir à des inconnus : l'inscription autonome bute sur le
-     service d'emails de Supabase, bridé à ~2 envois/heure. Deux voies, à
-     trancher le moment venu : brancher un vrai service d'envoi (Resend),
-     ou désactiver la confirmation d'email pour l'inscription par mot de
-     passe. Penser aussi à activer la détection des mots de passe
-     compromis, que `get_advisors` signale comme désactivée.
-- **La notice.** Décidé le 28 août 2026 : pas de `NOTICE.md` séparé — ça
-  n'a de sens que le jour où l'app s'ouvre à d'autres personnes (voir
-  point ci-dessus). À ce moment-là, en faire un **guide intégré à
-  l'app** (écran d'accueil pour un nouveau compte, ou aide contextuelle
-  en cas de blocage), pas un fichier à côté que personne n'ouvre.
+  4. ~~*L'inscription autonome bute sur le service d'emails.*~~
+     **Corrigé le 31 août 2026**, par la seconde des deux voies : `signUp()`
+     dans `js/sync.js` et confirmation d'email désactivée côté Supabase.
+     L'inscription est immédiate et n'envoie rien. Détail en §8.
+     *Ce qui reste ouvert :* l'adresse n'est plus vérifiée, donc quelqu'un
+     peut s'inscrire avec un email inexistant — sans conséquence entre
+     proches, à revoir avant une ouverture publique. Et le « mot de passe
+     oublié » passe toujours par le service d'emails bridé : assez rare
+     pour tenir, mais c'est le premier mur si l'app grandit. Brancher
+     Resend reste la vraie réponse, le jour venu.
+     *Ne pas repromettre la détection des mots de passe compromis :* elle
+     est réservée au plan Pro, ce que `get_advisors` omet de préciser.
+- ~~**La notice.**~~ **Faite le 31 août 2026**, et sous la forme décidée
+  le 28 août : un guide intégré à l'app, pas un `NOTICE.md` que personne
+  n'ouvre. Voir §8 ter.
